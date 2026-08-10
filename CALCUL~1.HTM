@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calculadora de Currículo — Residência Médica</title>
+
+<!-- ============================================================
+     CONFIGURAÇÃO DO ANÚNCIO
+     Troque os valores abaixo pelos seus depois de aprovado no
+     Google AdSense. Enquanto estiverem vazios, aparece um
+     espaço reservado ("Seu anúncio aqui").
+     ============================================================ -->
+<script>
+  const AD_CONFIG = {
+    adsenseClient: "",       // ex.: "ca-pub-1234567890123456"
+    adsenseSlot:   "",       // ex.: "9876543210"
+    segundosEspera: 5,       // tempo antes de liberar o resultado
+    imagemFallback: "",      // opcional: URL de um banner próprio
+    linkFallback:   ""       // opcional: para onde o banner leva
+  };
+</script>
+
+<style>
+  :root{
+    --bg:#f5f7fb; --card:#ffffff; --card2:#f9fafc; --line:#e2e7f0;
+    --txt:#1b2436; --muted:#6b7590; --accent:#2563eb; --accent2:#0f9d6e;
+    --warn:#b7791f; --bad:#d14350;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:1180px;margin:0 auto;padding:26px 18px 80px}
+  h1{font-size:26px;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:20px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;
+    margin-bottom:18px;box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  .card h2{font-size:13px;margin:0 0 14px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+  .f{margin-bottom:12px}
+  input[type=number],input[type=text],select{width:100%;background:#fff;border:1px solid var(--line);
+    color:var(--txt);border-radius:8px;padding:8px 10px;font-size:14px}
+  input:focus,select:focus{outline:2px solid #c7dbff;border-color:var(--accent)}
+  input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);margin-right:8px;vertical-align:-2px}
+  .chk{font-size:14px;color:var(--txt);margin-bottom:10px;cursor:pointer;display:block}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .hint{font-size:12px;color:var(--muted);margin-top:-6px;margin-bottom:10px}
+  button{background:var(--accent);color:#fff;border:0;border-radius:9px;padding:11px 18px;
+    font-weight:600;font-size:14px;cursor:pointer}
+  button:hover{filter:brightness(1.07)}
+  button:disabled{background:#c9d2e2;cursor:not-allowed;filter:none}
+  button.ghost{background:#fff;color:var(--muted);border:1px solid var(--line);font-weight:500}
+  .res{border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;background:var(--card2)}
+  .res .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .res .nome{font-weight:700;font-size:16px}
+  .res .uf{color:var(--muted);font-weight:400;font-size:13px}
+  .big{font-size:22px;font-weight:800;color:var(--accent2)}
+  .bar{height:7px;background:#e8edf6;border-radius:4px;overflow:hidden;margin:10px 0 8px}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .meta{font-size:12.5px;color:var(--muted)}
+  .tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:20px;border:1px solid var(--line);
+    color:var(--muted);margin-left:6px}
+  .tag.alta{border-color:#a7ddc4;background:#eefaf4;color:#0b7a56}
+  .tag.media{border-color:#f0dca8;background:#fdf7e8;color:#8a6416}
+  .tag.est{border-color:#f2c2c6;background:#fdf0f1;color:#a8323d}
+  details{margin-top:10px}
+  summary{cursor:pointer;font-size:13px;color:var(--accent)}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+  td{padding:5px 0;border-bottom:1px solid #eaeef6;color:var(--muted)}
+  td:last-child{text-align:right;color:var(--txt);font-variant-numeric:tabular-nums}
+  .aviso{background:#fdf8ec;border:1px solid #f0e0bb;color:#7a5c18;font-size:13px;
+    border-radius:10px;padding:12px 14px;margin-bottom:18px}
+  .sug{background:#eef4ff;border:1px solid #cfe0ff;border-radius:10px;padding:12px 14px;font-size:13.5px}
+  .sug li{margin-bottom:6px}
+  .rank1{border-color:var(--accent2);box-shadow:0 0 0 1px var(--accent2) inset}
+
+  /* ---- anúncio ---- */
+  #adGate{display:none}
+  .adbox{border:1px dashed #c3cee0;background:#fbfcfe;border-radius:12px;min-height:260px;
+    display:flex;align-items:center;justify-content:center;padding:14px;text-align:center;
+    color:var(--muted);font-size:13px}
+  .adlabel{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:#98a2b8;margin-bottom:8px}
+  .adbox img{max-width:100%;border-radius:8px}
+  .gatefoot{margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .cfg{font-size:12.5px;color:var(--muted)}
+  .cfg input{margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Calculadora de pontos extracurriculares — Residência Médica</h1>
+  <div class="sub">Preencha suas atividades uma vez. O sistema converte para o barema de cada processo seletivo e mostra onde seu currículo rende mais.</div>
+
+  <div class="aviso">
+    <strong>Leia antes de usar.</strong> Os baremas mudam a cada edição e muitos detalhes só existem nos anexos dos editais oficiais.
+    Cada instituição traz um selo de confiança: <span class="tag alta">alta</span> barema oficial conferido ·
+    <span class="tag media">média</span> critérios divulgados parcialmente · <span class="tag est">estimado</span> modelo aproximado.
+    Use como orientação estratégica, não como nota oficial.
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="card">
+        <h2>Seu momento</h2>
+        <div class="row2">
+          <div class="f"><label>Período / semestre atual</label>
+            <select id="semestre">
+              <option value="1">1º semestre</option><option value="2">2º</option><option value="3">3º</option>
+              <option value="4">4º</option><option value="5">5º</option><option value="6">6º</option>
+              <option value="7">7º</option><option value="8">8º</option><option value="9">9º (internato)</option>
+              <option value="10" selected>10º (internato)</option><option value="11">11º (internato)</option>
+              <option value="12">12º (internato)</option><option value="13">Já formado</option>
+            </select>
+          </div>
+          <div class="f"><label>Média geral / CRA do histórico (0–10)</label>
+            <input type="number" id="media" value="8" min="0" max="10" step="0.1"></div>
+        </div>
+        <div class="f"><label>Você vai concorrer a…</label>
+          <select id="modalidade">
+            <option value="direto" selected>Acesso direto (R1)</option>
+            <option value="pre">Pré-requisito / ano adicional (R+)</option>
+          </select></div>
+        <div class="f"><label>Nível de inglês comprovado (CEFR / certificação)</label>
+          <select id="ingles">
+            <option value="0">Nenhum certificado</option><option value="1">B1 (PET / intermediário)</option>
+            <option value="2" selected>B2 (FCE / TOEFL 72+)</option><option value="3">C1 (CAE / TOEFL 95+)</option>
+            <option value="4">C2 (CPE / proficiência)</option>
+          </select></div>
+      </div>
+
+      <div class="card">
+        <h2>Pesquisa e produção científica</h2>
+        <div class="row2">
+          <div class="f"><label>Iniciação científica (meses totais)</label><input type="number" id="icMeses" value="12" min="0"></div>
+          <div class="f"><label>&nbsp;</label><label class="chk"><input type="checkbox" id="icBolsa" checked>Teve bolsa (FAPESP/CNPq/PIBIC)</label></div>
+        </div>
+        <div class="row3">
+          <div class="f"><label>Artigos — 1º autor</label><input type="number" id="art1" value="0" min="0"></div>
+          <div class="f"><label>Artigos — coautor</label><input type="number" id="artC" value="1" min="0"></div>
+          <div class="f"><label>Capítulos de livro</label><input type="number" id="cap" value="0" min="0"></div>
+        </div>
+        <div class="hint">Só periódicos indexados, com ISSN/DOI.</div>
+        <div class="row3">
+          <div class="f"><label>Trabalhos apresentados</label><input type="number" id="apres" value="2" min="0"></div>
+          <div class="f"><label>Resumos em anais</label><input type="number" id="anais" value="2" min="0"></div>
+          <div class="f"><label>Congressos assistidos</label><input type="number" id="congr" value="4" min="0"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Atividades acadêmicas</h2>
+        <div class="row2">
+          <div class="f"><label>Monitoria (nº de semestres)</label><input type="number" id="monit" value="2" min="0"></div>
+          <div class="f"><label>Ligas acadêmicas (nº de ligas)</label><input type="number" id="ligas" value="2" min="0"></div>
+        </div>
+        <div class="row2">
+          <div class="f"><label>Tempo médio em liga (anos)</label><input type="number" id="ligasAnos" value="2" min="0" step="0.5"></div>
+          <div class="f"><label>Extensão / projetos sociais (semestres)</label><input type="number" id="ext" value="1" min="0"></div>
+        </div>
+        <div class="row2">
+          <div class="f"><label>Estágio extracurricular (horas)</label><input type="number" id="estagio" value="200" min="0" step="10"></div>
+          <div class="f"><label>Representação estudantil (anos)</label><input type="number" id="rep" value="0" min="0" step="0.5"></div>
+        </div>
+        <label class="chk"><input type="checkbox" id="pet">Participou do PET-Saúde</label>
+        <label class="chk"><input type="checkbox" id="tp">Participou do Consórcio Teste de Progresso</label>
+        <div class="row2">
+          <div class="f"><label>Organização de eventos científicos</label><input type="number" id="org" value="1" min="0"></div>
+          <div class="f"><label>Atuação como palestrante</label><input type="number" id="pal" value="0" min="0"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Cursos e internato</h2>
+        <label class="chk"><input type="checkbox" id="acls" checked>ACLS</label>
+        <label class="chk"><input type="checkbox" id="atls">ATLS</label>
+        <label class="chk"><input type="checkbox" id="pals">PALS / ALSO / outro suporte avançado (≥16h)</label>
+        <div class="hint">BLS e suporte básico não pontuam na maioria dos editais (exceção: CERMAM pré-requisito).</div>
+        <div class="row2">
+          <div class="f"><label>Cursos de tema médico (AMB, ≥8h)</label><input type="number" id="amb" value="1" min="0"></div>
+          <div class="f"><label>Cursos/treinamentos em saúde ≥40h</label><input type="number" id="cursos40" value="1" min="0"></div>
+        </div>
+        <div class="row2">
+          <div class="f"><label>Plantões de internato comprovados (horas)</label><input type="number" id="plant" value="600" min="0" step="50"></div>
+          <div class="f"><label>&nbsp;</label><label class="chk"><input type="checkbox" id="concurso">Aprovado em concurso público médico</label></div>
+        </div>
+        <button id="btnCalc" onclick="abrirGate()">Calcular pontuação</button>
+        <button class="ghost" onclick="location.reload()">Limpar</button>
+      </div>
+    </div>
+
+    <div>
+      <!-- ===== interstitial do anúncio ===== -->
+      <div class="card" id="adGate">
+        <h2>Preparando seu resultado</h2>
+        <div class="adlabel">Publicidade</div>
+        <div class="adbox" id="adbox">Seu anúncio aqui</div>
+        <div class="gatefoot">
+          <button id="btnVer" disabled onclick="revelar()">Ver meu resultado</button>
+          <span class="meta" id="contagem"></span>
+        </div>
+      </div>
+
+      <div id="painelResultado" style="display:none">
+        <div class="card">
+          <h2>Resultado por processo seletivo</h2>
+          <div id="out" class="meta"></div>
+        </div>
+        <div class="card">
+          <h2>Onde investir agora</h2>
+          <div id="sug" class="meta">—</div>
+        </div>
+      </div>
+
+      <div class="card" id="painelInicial">
+        <h2>Como funciona</h2>
+        <div class="meta">
+          Preencha os campos ao lado e clique em <strong>Calcular pontuação</strong>.
+          Você verá, para cada processo seletivo, quanto do barema seu currículo já aproveita,
+          quanto isso vale na nota final e quais próximos passos rendem mais pontos.
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const g = id => document.getElementById(id);
+const num = id => parseFloat(g(id).value) || 0;
+const chk = id => g(id).checked;
+const cap = (v,m) => Math.min(v, m);
+
+/* ================= ANÚNCIO ================= */
+let adsCarregado = false;
+
+// Só exibe a tela de anúncio quando houver anúncio configurado.
+function anuncioAtivo(){
+  return !!((AD_CONFIG.adsenseClient && AD_CONFIG.adsenseSlot) || AD_CONFIG.imagemFallback);
+}
+
+function montarAnuncio(){
+  const box = g('adbox');
+  if (AD_CONFIG.adsenseClient && AD_CONFIG.adsenseSlot){
+    box.innerHTML = `<ins class="adsbygoogle" style="display:block;width:100%"
+        data-ad-client="${AD_CONFIG.adsenseClient}" data-ad-slot="${AD_CONFIG.adsenseSlot}"
+        data-ad-format="auto" data-full-width-responsive="true"></ins>`;
+    if (!adsCarregado){
+      const s = document.createElement('script');
+      s.async = true; s.crossOrigin = 'anonymous';
+      s.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + AD_CONFIG.adsenseClient;
+      document.head.appendChild(s);
+      adsCarregado = true;
+    }
+    try{ (window.adsbygoogle = window.adsbygoogle || []).push({}); }catch(e){}
+  } else if (AD_CONFIG.imagemFallback){
+    const img = `<img src="${AD_CONFIG.imagemFallback}" alt="Publicidade">`;
+    box.innerHTML = AD_CONFIG.linkFallback
+      ? `<a href="${AD_CONFIG.linkFallback}" target="_blank" rel="noopener sponsored">${img}</a>` : img;
+  }
+}
+
+function abrirGate(){
+  calc();                                   // calcula em memória
+  g('painelInicial').style.display = 'none';
+
+  if (!anuncioAtivo()){                     // sem anúncio: vai direto ao resultado
+    g('adGate').style.display = 'none';
+    g('painelResultado').style.display = 'block';
+    return;
+  }
+
+  g('painelResultado').style.display = 'none';
+  g('adGate').style.display = 'block';
+  montarAnuncio();
+  let s = Math.max(0, AD_CONFIG.segundosEspera|0);
+  const btn = g('btnVer'), txt = g('contagem');
+  btn.disabled = s > 0;
+  txt.textContent = s > 0 ? `Disponível em ${s}s` : '';
+  const t = setInterval(()=>{
+    s--;
+    if (s <= 0){ clearInterval(t); btn.disabled = false; txt.textContent=''; }
+    else txt.textContent = `Disponível em ${s}s`;
+  }, 1000);
+  g('adGate').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function revelar(){
+  g('adGate').style.display = 'none';
+  g('painelResultado').style.display = 'block';
+}
+
+/* ================= PERFIL ================= */
+function perfil(){
+  const s = parseInt(g('semestre').value);
+  const suporte = (chk('acls')?1:0)+(chk('atls')?1:0)+(chk('pals')?1:0);
+  return {
+    semestre:s, formado: s===13,
+    internatoAnos: s>=13 ? 2 : Math.max(0, Math.min(2,(s-8)/2)),
+    media:num('media'), ingles:parseInt(g('ingles').value),
+    icMeses:num('icMeses'), icBolsa:chk('icBolsa'),
+    art1:num('art1'), artC:num('artC'), capL:num('cap'),
+    apres:num('apres'), anais:num('anais'), congr:num('congr'),
+    monit:num('monit'), ligas:num('ligas'), ligasAnos:num('ligasAnos'),
+    ext:num('ext'), estagio:num('estagio'), rep:num('rep'),
+    pet:chk('pet'), tp:chk('tp'), org:num('org'), pal:num('pal'),
+    suporte, amb:num('amb'), plant:num('plant'),
+    cursos40:num('cursos40'), concurso:chk('concurso')
+  };
+}
+
+/* ================= BAREMAS ================= */
+const EDITAIS = [
+{ id:'usp', nome:'USP-SP (FMUSP/HC)', uf:'SP', pesoCurriculo:10, conf:'media',
+  obs:'Análise + arguição curricular, nota de 0 a 100, classificatória e principal critério de desempate. Em alguns programas o conjunto currículo+arguição pesa mais.',
+  fonte:'https://med.estrategia.com/portal/residencia-medica/analise-do-curriculo-usp-sp/',
+  itens:[
+    ['Desempenho acadêmico (histórico + internato)', p=>p.media*3, 30],
+    ['Iniciação científica', p=>(p.icMeses>=6?(p.icBolsa?15:9):p.icMeses>=3?5:0), 15],
+    ['Monitoria', p=>cap(p.monit*3,9), 9],
+    ['Produção científica (artigos/capítulos)', p=>cap(p.art1*8+p.artC*4+p.capL*4,20), 20],
+    ['Eventos científicos', p=>cap(p.apres*2+p.anais*1+p.congr*0.5,10), 10],
+    ['Língua estrangeira', p=>[0,2,4,5,6][p.ingles], 6],
+    ['Ligas, extensão e estágios', p=>cap(cap(p.ligas,2)*2+p.ext*1+Math.min(p.estagio/100,3),8), 8],
+    ['Representação estudantil', p=>cap(p.rep*1,2), 2]
+  ]},
+
+{ id:'unicamp', nome:'UNICAMP', uf:'SP', pesoCurriculo:10, conf:'alta',
+  obs:'Currículo vale peso 10 (10% da nota). Itens confirmados: IC ≥5 meses (com bolsa pontua mais), trabalhos em congresso, artigos, consórcio de teste de progresso, ligas/CA/atlética, representação discente, internato de 2 anos e plantões acima de 750h. Envio em PDF + Lattes.',
+  fonte:'https://www.medway.com.br/conteudos/descubra-o-peso-do-curriculo-na-residencia-medica-da-unicamp/',
+  itens:[
+    ['Iniciação científica (mín. 5 meses)', p=>(p.icMeses>=5?(p.icBolsa?1.5:1.0):0), 1.5],
+    ['Trabalhos apresentados em congresso', p=>cap(p.apres*0.5,1.0), 1.0],
+    ['Artigos publicados em revista indexada', p=>cap(p.art1*1.5+p.artC*0.75,1.5), 1.5],
+    ['Tempo de internato (2 anos)', p=>p.internatoAnos>=2?2.0:p.internatoAnos, 2.0],
+    ['Plantões de internato (>750h)', p=>p.plant>=750?1.0:p.plant/750, 1.0],
+    ['Consórcio Teste de Progresso', p=>p.tp?0.5:0, 0.5],
+    ['Ligas / CA / atlética', p=>cap(cap(p.ligas,2)*0.5,1.0), 1.0],
+    ['Representação discente em colegiados', p=>cap(p.rep*0.5,1.0), 1.0],
+    ['Monitoria / extensão', p=>cap(p.monit*0.25+p.ext*0.25,0.5), 0.5]
+  ]},
+
+{ id:'psumg', nome:'PSU-MG (AREMG)', uf:'MG', pesoCurriculo:10, conf:'media',
+  obs:'2ª etapa, só para classificados na objetiva. Modelo 2027: tabela CEFR para inglês, máximo 2 ligas, suporte avançado apenas ≥16h de entidade internacional (BLS não pontua), cursos AMB ≥8h dos últimos 5 anos, artigos com DOI/indexação/Qualis. Documentos autenticados e anexados no item exato.',
+  fonte:'https://www.grupomedcof.com.br/blog/como-e-a-analise-curricular-de-residencia-medica-do-psu-mg/',
+  itens:[
+    ['Desempenho acadêmico (histórico)', p=>p.media*2.5, 25],
+    ['Língua estrangeira (CEFR)', p=>[0,3,6,8,10][p.ingles], 10],
+    ['Estágios / monitoria / PET-Saúde', p=>cap(Math.min(p.estagio/100,5)+p.monit*2+(p.pet?3:0),12), 12],
+    ['Iniciação científica e pesquisa', p=>(p.icMeses>=6?12:p.icMeses>=3?6:0), 12],
+    ['Eventos científicos (organização/palestrante)', p=>cap(p.org*2+p.pal*2,6), 6],
+    ['Ligas (máx. 2) e representação estudantil', p=>cap(cap(p.ligas,2)*2+p.rep*2,8), 8],
+    ['Suporte avançado à vida (≥16h)', p=>cap(p.suporte*4,8), 8],
+    ['Cursos de temas médicos (AMB ≥8h)', p=>cap(p.amb*2,4), 4],
+    ['Produção científica', p=>cap(p.art1*6+p.artC*3+p.apres*1.5+p.anais*1,15), 15]
+  ]},
+
+{ id:'cermam', nome:'CERMAM — Acesso Direto', uf:'AM', pesoCurriculo:10, conf:'alta',
+  obs:'Seleção unificada do Amazonas (18 instituições: UEA, HUGV/UFAM, FMT-HVD, Adriano Jorge, FCECON, Alfredo da Matta, HEMOAM, SAMEL, Nilton Lins, SES/AM, SEMSA-Manaus, IOM, VISION, FAMETRO, ITPAC, Adventista, Hospital Militar). Objetiva pesa 90% (100 questões, mín. 50% de acertos), currículo 10%. Barema oficial do Manual do Candidato, total 10,0. Currículo Lattes em PDF é obrigatório — sem ele nenhum documento pontua. Regras críticas: IC exige mín. 1 ano e ser autor principal; monitoria só conta disciplinas diferentes; cada liga pontua uma única vez; artigos e eventos só dos últimos 5 anos. Inscrições entre out. e nov., taxa R$ 450, prova só em Manaus.',
+  fonte:'https://cermam.com.br/wp-content/uploads/2025/10/Manual-do-Candidato-CERMAM-2025-2026-atual.pdf',
+  itens:[
+    ['1.1 Histórico / CRA (9–10:2,0 · 8–8,9:1,5 · 7–7,9:1,0 · 6–6,9:0,5)',
+      p=>p.media>=9?2.0:p.media>=8?1.5:p.media>=7?1.0:p.media>=6?0.5:0, 2.0],
+    ['4.4 Iniciação científica PIBIC/PAIC (1,0 cada, mín. 1 ano, autor principal)',
+      p=>cap(Math.floor(p.icMeses/12),2)*1.0, 2.0],
+    ['4.3 Extensão / ligas / PET (0,5 cada, máx. 2)', p=>cap(cap(p.ligas,2)+p.ext,2)*0.5, 1.0],
+    ['4.5 Monitoria (0,5 por semestre, máx. 2)', p=>cap(p.monit,2)*0.5, 1.0],
+    ['4.1 Trabalhos apresentados / anais (0,25 cada, máx. 4)', p=>cap(p.apres+p.anais,4)*0.25, 1.0],
+    ['4.2 Artigos indexados / livros e capítulos (0,5 cada, máx. 2)', p=>cap(p.art1+p.artC+p.capL,2)*0.5, 1.0],
+    ['2.2 Congressos e jornadas ≥10h (0,2 cada, máx. 5)', p=>cap(p.congr,5)*0.2, 1.0],
+    ['2.1 Cursos/treinamentos em saúde ≥40h (0,25 cada, máx. 2)', p=>cap(p.cursos40,2)*0.25, 0.5],
+    ['3.1 Estágio extracurricular ≥200h', p=>p.estagio>=200?0.5:0, 0.5]
+  ]},
+
+{ id:'cermam_pre', nome:'CERMAM — Pré-requisito / Ano adicional', uf:'AM', mod:'pre', pesoCurriculo:10, conf:'alta',
+  obs:'Para quem já concluiu a residência de pré-requisito (R+). Barema totalmente diferente do acesso direto: histórico, monitoria, IC, ligas e estágio NÃO pontuam. Vale artigo indexado (com DOI e base científica), trabalho apresentado, cursos de suporte à vida (aqui o BLS conta, mas só os feitos durante a residência de pré-requisito, validade 2 anos) e aprovação em concurso público médico. Congressos exigem ≥20h e valem conforme abrangência: internacional 0,5 · nacional 0,4 · regional 0,3.',
+  fonte:'https://cermam.com.br/wp-content/uploads/2025/10/Manual-do-Candidato-CERMAM-2025-2026-atual.pdf',
+  itens:[
+    ['1.1 Artigos indexados / livros e capítulos (1,0 cada, máx. 5)', p=>cap(p.art1+p.artC+p.capL,5)*1.0, 5.0],
+    ['1.2 Trabalhos apresentados / anais (0,5 cada, máx. 3)', p=>cap(p.apres+p.anais,3)*0.5, 1.5],
+    ['2.1 Suporte à vida — BLS/ACLS/ATLS/PALS/ALSO (0,5 cada, máx. 3)', p=>cap(p.suporte+p.amb,3)*0.5, 1.5],
+    ['2.2 Congressos ≥20h (0,3 a 0,5 conforme abrangência)', p=>cap(p.congr*0.4,1.0), 1.0],
+    ['3.1 Aprovação em concurso público médico', p=>p.concurso?1.0:0, 1.0]
+  ]},
+
+{ id:'uel', nome:'UEL', uf:'PR', pesoCurriculo:10, conf:'media',
+  obs:'Análise curricular classificatória, nota máxima 10, peso 1,0. Currículo entregue presencialmente no dia da prova (08/11/2026), entre 14h e 14h30. Tabela detalhada no Anexo III do edital COPS/UEL.',
+  fonte:'https://med.estrategia.com/portal/noticias/uel-edital-residencia-medica-2027/',
+  itens:[
+    ['Iniciação científica', p=>(p.icMeses>=6?2.0:p.icMeses>=3?1.0:0), 2.0],
+    ['Publicações em periódicos indexados', p=>cap(p.art1*1.5+p.artC*0.75+p.capL*0.5,2.0), 2.0],
+    ['Monitoria', p=>cap(p.monit*0.5,1.5), 1.5],
+    ['Apresentação de trabalhos / congressos', p=>cap(p.apres*0.4+p.anais*0.2+p.congr*0.1,1.5), 1.5],
+    ['Ligas acadêmicas e extensão', p=>cap(cap(p.ligas,2)*0.4+p.ext*0.2,1.0), 1.0],
+    ['Estágios extracurriculares', p=>cap(p.estagio/200*0.5,1.0), 1.0],
+    ['Cursos de suporte avançado', p=>cap(p.suporte*0.35,0.7), 0.7],
+    ['Idiomas / representação', p=>cap([0,0.1,0.2,0.3,0.3][p.ingles]+p.rep*0.1,0.3), 0.3]
+  ]},
+
+{ id:'unifesp', nome:'UNIFESP (EPM)', uf:'SP', pesoCurriculo:10, conf:'media',
+  obs:'Currículo + arguição com peso total 1; a divisão entre currículo e arguição varia por especialidade. Aceita exclusivamente o currículo Lattes — mantenha o seu atualizado.',
+  fonte:'https://sanarmed.com/residencia-medica-da-escola-paulista-de-medicina-unifesp/',
+  itens:[
+    ['Produção científica (Lattes)', p=>cap(p.art1*1.5+p.artC*0.75+p.capL*0.5+p.anais*0.2,3.0), 3.0],
+    ['Iniciação científica', p=>(p.icMeses>=6?(p.icBolsa?2.5:1.5):p.icMeses>=3?1.0:0), 2.5],
+    ['Monitoria e docência', p=>cap(p.monit*0.5,1.5), 1.5],
+    ['Eventos científicos', p=>cap(p.apres*0.3+p.congr*0.1+p.org*0.2,1.0), 1.0],
+    ['Ligas, extensão, estágios', p=>cap(cap(p.ligas,2)*0.4+p.ext*0.2+Math.min(p.estagio/200,0.6),1.5), 1.5],
+    ['Idiomas', p=>[0,0.1,0.3,0.4,0.5][p.ingles], 0.5]
+  ]},
+
+{ id:'pucpr', nome:'PUCPR', uf:'PR', pesoCurriculo:15, conf:'est',
+  obs:'Modelo estimado. Seleção 2027 com 69 vagas, inscrições de 21/08 a 21/09/2026, taxa R$ 880. Confira o barema oficial no edital.',
+  fonte:'https://med.estrategia.com/portal/noticias/pucpr-edital-residencia-medica-2027/',
+  itens:[
+    ['Produção científica', p=>cap(p.art1*1.5+p.artC*0.8+p.apres*0.4,3.0), 3.0],
+    ['Iniciação científica', p=>(p.icMeses>=6?2.0:p.icMeses>=3?1.0:0), 2.0],
+    ['Monitoria e docência', p=>cap(p.monit*0.6,1.5), 1.5],
+    ['Ligas, extensão e estágios', p=>cap(cap(p.ligas,2)*0.5+p.ext*0.25+Math.min(p.estagio/200,1),2.0), 2.0],
+    ['Cursos (suporte avançado + AMB)', p=>cap(p.suporte*0.4+p.amb*0.2,1.0), 1.0],
+    ['Idiomas', p=>[0,0.1,0.3,0.4,0.5][p.ingles], 0.5]
+  ]},
+
+{ id:'hnmd', nome:'HNMD (Hospital Naval Marcílio Dias)', uf:'RJ', pesoCurriculo:20, conf:'est',
+  obs:'Modelo estimado. 71 vagas para 2027, inscrições 31/07 a 31/08/2026, taxa R$ 320. Seleção militar costuma valorizar títulos e cursos formais.',
+  fonte:'https://med.estrategia.com/portal/noticias/hnmd-edital-residencia-medica-2027/',
+  itens:[
+    ['Produção científica', p=>cap(p.art1*1.2+p.artC*0.6+p.anais*0.3,2.5), 2.5],
+    ['Iniciação científica', p=>(p.icMeses>=6?2.0:p.icMeses>=3?1.0:0), 2.0],
+    ['Cursos de suporte avançado (ACLS/ATLS)', p=>cap(p.suporte*0.8,2.0), 2.0],
+    ['Monitoria', p=>cap(p.monit*0.5,1.5), 1.5],
+    ['Estágios e ligas', p=>cap(Math.min(p.estagio/200,1)+cap(p.ligas,2)*0.25,1.5), 1.5],
+    ['Idiomas', p=>[0,0.1,0.3,0.4,0.5][p.ingles], 0.5]
+  ]},
+
+{ id:'enare', nome:'ENARE / HU Brasil (Ebserh)', uf:'Nacional', pesoCurriculo:0, conf:'alta',
+  obs:'Seleção 2026/2027 decidida essencialmente pela prova (Enamed/objetiva) — não há fase de análise curricular geral. Reserva de 30% PPI/quilombolas e 10% PcD em programas com 5+ vagas. Prova 13/09/2026, resultado 08/01/2027.',
+  fonte:'https://www.gov.br/mec/pt-br/assuntos/noticias/2026/junho/enare-2026-2027-candidatos-a-residencia-ja-podem-se-inscrever',
+  itens:[]}
+];
+
+/* ================= CÁLCULO ================= */
+function calc(){
+  const p = perfil();
+  const mod = g('modalidade').value;
+  const ATIVOS = EDITAIS.filter(e => (e.mod||'direto') === mod || e.id==='enare');
+  const linhas = ATIVOS.map(e=>{
+    let total=0, det=[];
+    e.itens.forEach(([rot,fn,teto])=>{
+      const v = Math.min(fn(p), teto);
+      total += v; det.push([rot,v,teto]);
+    });
+    const maxTot = e.itens.reduce((a,[,,t])=>a+t,0);
+    const pct = maxTot? total/maxTot : 0;
+    return {e, total, maxTot, pct, det, impacto: pct*e.pesoCurriculo};
+  });
+  const comCurr = linhas.filter(l=>l.e.itens.length);
+  const semCurr = linhas.filter(l=>!l.e.itens.length);
+  comCurr.sort((a,b)=>b.pct-a.pct);
+
+  const conf = {alta:'alta', media:'média', est:'estimado'};
+
+  g('out').innerHTML = comCurr.map((l,i)=>`
+    <div class="res ${i===0?'rank1':''}">
+      <div class="top">
+        <div><span class="nome">${l.e.nome}</span> <span class="uf">${l.e.uf}</span>
+          <span class="tag ${l.e.conf}">confiança ${conf[l.e.conf]}</span></div>
+        <div class="big">${(l.pct*100).toFixed(0)}%</div>
+      </div>
+      <div class="bar"><i style="width:${(l.pct*100).toFixed(1)}%"></i></div>
+      <div class="meta">
+        ${l.total.toFixed(2)} de ${l.maxTot.toFixed(2)} pontos do barema ·
+        currículo pesa <strong>${l.e.pesoCurriculo}%</strong> da nota final →
+        equivale a <strong>${l.impacto.toFixed(2)} pontos percentuais</strong> na nota final.
+      </div>
+      <details><summary>Ver detalhamento e observações</summary>
+        <table>${l.det.map(([r,v,t])=>`<tr><td>${r}</td><td>${v.toFixed(2)} / ${t}</td></tr>`).join('')}</table>
+        <div class="meta" style="margin-top:10px">${l.e.obs}<br>
+        <a href="${l.e.fonte}" target="_blank" rel="noopener" style="color:var(--accent)">Fonte</a></div>
+      </details>
+    </div>`).join('') + semCurr.map(l=>`
+    <div class="res">
+      <div class="top"><div><span class="nome">${l.e.nome}</span> <span class="uf">${l.e.uf}</span>
+        <span class="tag ${l.e.conf}">confiança ${conf[l.e.conf]}</span></div>
+        <div class="meta">sem fase curricular</div></div>
+      <div class="meta" style="margin-top:8px">${l.e.obs}<br>
+      <a href="${l.e.fonte}" target="_blank" rel="noopener" style="color:var(--accent)">Fonte</a></div>
+    </div>`).join('');
+
+  const acoes = [
+    ['Publicar 1 artigo como primeiro autor em periódico indexado', q=>q.art1++],
+    ['Publicar 1 artigo como coautor', q=>q.artC++],
+    ['Completar 12 meses de iniciação científica com bolsa', q=>{q.icMeses=Math.max(q.icMeses,12);q.icBolsa=true}],
+    ['Fazer mais 1 semestre de monitoria (disciplina diferente)', q=>q.monit++],
+    ['Apresentar 1 trabalho em congresso', q=>{q.apres++;q.anais++}],
+    ['Fazer ACLS/ATLS (suporte avançado ≥16h)', q=>q.suporte=Math.min(q.suporte+1,3)],
+    ['Subir 1 nível de certificação de inglês', q=>q.ingles=Math.min(q.ingles+1,4)],
+    ['+100h de estágio extracurricular', q=>q.estagio+=100],
+    ['Completar 200h de estágio extracurricular', q=>q.estagio=Math.max(q.estagio,200)],
+    ['Assumir cargo de representação estudantil por 1 ano', q=>q.rep++],
+    ['Entrar em mais 1 liga acadêmica (até 2 contam)', q=>q.ligas++],
+    ['Fazer 1 curso de tema médico AMB (≥8h)', q=>q.amb++],
+    ['Fazer 1 curso/treinamento em saúde com ≥40h', q=>q.cursos40++],
+    ['Participar de mais 1 congresso/jornada (≥10h)', q=>q.congr++],
+    ['Ser aprovado em concurso público médico', q=>q.concurso=true],
+    ['Organizar 1 evento científico', q=>q.org++]
+  ];
+  const base = comCurr.reduce((a,l)=>a+l.pct,0)/comCurr.length;
+  const ganhos = acoes.map(([rot,mut])=>{
+    const q = JSON.parse(JSON.stringify(p)); mut(q);
+    const novo = ATIVOS.filter(e=>e.itens.length).map(e=>
+      e.itens.reduce((a,[,fn,t])=>a+Math.min(fn(q),t),0) / e.itens.reduce((a,[,,t])=>a+t,0));
+    return {rot, ganho:(novo.reduce((a,b)=>a+b,0)/novo.length - base)*100};
+  }).filter(x=>x.ganho>0.01).sort((a,b)=>b.ganho-a.ganho).slice(0,6);
+
+  const melhor = comCurr[0], pior = comCurr[comCurr.length-1];
+  g('sug').innerHTML = `
+    <div class="sug">
+      <div style="margin-bottom:10px">Seu perfil rende mais em <strong>${melhor.e.nome}</strong>
+      (${(melhor.pct*100).toFixed(0)}% do barema) e menos em <strong>${pior.e.nome}</strong>
+      (${(pior.pct*100).toFixed(0)}%). Média geral: <strong>${(base*100).toFixed(0)}%</strong>.</div>
+      <div style="margin-bottom:6px;color:var(--muted)">Ações com maior ganho médio de aproveitamento:</div>
+      <ol style="margin:0;padding-left:20px">
+        ${ganhos.map(x=>`<li>${x.rot} <span style="color:var(--accent2);font-weight:600">+${x.ganho.toFixed(1)} p.p.</span></li>`).join('')}
+      </ol>
+      <div style="margin-top:12px;color:var(--muted);font-size:12.5px">
+        Lembre: em quase todos esses processos a prova objetiva pesa 85–90% da nota.
+        O currículo decide empates e disputas apertadas — não substitui o estudo.
+      </div>
+    </div>`;
+}
+</script>
+</body>
+</html>
