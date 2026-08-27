@@ -1,0 +1,11 @@
+# Secrets — nunca comitar valores reais
+.env
+.env.local
+*.local
+
+# Supabase CLI
+.supabase/
+supabase/.temp/
+
+# SO / editores
+.DS_Store

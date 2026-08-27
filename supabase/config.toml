@@ -1,0 +1,7 @@
+# Configuração do projeto Supabase (usado pela CLI `supabase`).
+# Ajuste project_id para o ref do seu projeto ao rodar `supabase link`.
+project_id = "seu-project-ref"
+
+[functions.telegram-webhook]
+# O Telegram não envia JWT; a autenticação é feita pelo header de segredo.
+verify_jwt = false
