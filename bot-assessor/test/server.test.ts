@@ -1,110 +1,101 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createHmac } from "node:crypto";
 import type { AddressInfo } from "node:net";
-import { createApp, type AppDeps } from "../src/server.ts";
+import { createApp, handleUpdate, WELCOME, type AppDeps } from "../src/server.ts";
 import { MemoryStore } from "../src/store.ts";
 import type { Assessor } from "../src/assessor.ts";
-import type { WhatsAppClient } from "../src/whatsapp.ts";
 
-const SECRET = "app-secret";
-
-function payload(text: string, id = "wamid.1", from = "5511999999999") {
+function update(text: string | undefined, id = 100, chatId = 42) {
   return {
-    object: "whatsapp_business_account",
-    entry: [{ changes: [{ field: "messages", value: {
-      contacts: [{ wa_id: from, profile: { name: "Ana" } }],
-      messages: [{ id, from, timestamp: String(Math.floor(Date.now() / 1000)), type: "text", text: { body: text } }],
-    } }] }],
+    update_id: id,
+    message: {
+      message_id: id, date: Math.floor(Date.now() / 1000), text,
+      from: { id: chatId, first_name: "Ana" }, chat: { id: chatId, type: "private" },
+    },
   };
 }
 
-async function startApp(overrides: Partial<AppDeps> = {}) {
+function makeDeps(overrides: Partial<AppDeps> = {}) {
   const store = new MemoryStore();
   const sent: Array<{ to: string; text: string }> = [];
-  const wa = {
+  const telegram = {
     sendText: async (to: string, text: string) => { sent.push({ to, text }); },
-    markReadAndTyping: async () => {},
-  } as unknown as WhatsAppClient;
-  const assessor = {
-    reply: async (_user: unknown, text: string) => `eco: ${text}`,
-  } as unknown as Assessor;
-  const app = createApp({
-    store, wa, assessor, verifyToken: "verify-me", appSecret: SECRET,
-    defaultTz: "America/Sao_Paulo", allowedPhones: new Set(), ...overrides,
-  });
+    sendTyping: async () => {},
+  };
+  const assessor = { reply: async (_u: unknown, text: string) => `eco: ${text}` } as unknown as Assessor;
+  const deps: AppDeps = { store, telegram, assessor, defaultTz: "America/Sao_Paulo", allowedChatIds: new Set(), ...overrides };
+  return { deps, sent, store };
+}
+
+test("handleUpdate responde via assessor, cria o usuário e ignora duplicados", async () => {
+  const { deps, sent, store } = makeDeps();
+  await handleUpdate(deps, update("gastei 40 no almoço"));
+  assert.deepEqual(sent, [{ to: "42", text: "eco: gastei 40 no almoço" }]);
+  assert.equal(store.users[0]?.name, "Ana");
+  assert.equal(store.users[0]?.chat_id, "42");
+  await handleUpdate(deps, update("gastei 40 no almoço")); // mesmo update_id
+  assert.equal(sent.length, 1);
+});
+
+test("/start responde com boas-vindas sem chamar a IA; outros comandos viram texto", async () => {
+  const { deps, sent } = makeDeps();
+  await handleUpdate(deps, update("/start", 1));
+  assert.equal(sent[0].text, WELCOME);
+  await handleUpdate(deps, update("/resumo mes", 2));
+  assert.equal(sent[1].text, "eco: resumo mes");
+});
+
+test("chats fora de ALLOWED_CHAT_IDS recebem aviso com o próprio id", async () => {
+  const { deps, sent, store } = makeDeps({ allowedChatIds: new Set(["999"]) });
+  await handleUpdate(deps, update("oi", 5));
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].text, /privado.*42/);
+  assert.equal(store.users.length, 0);
+});
+
+test("mensagem sem texto recebe aviso; erro do assessor vira mensagem amigável", async () => {
+  const { deps, sent } = makeDeps();
+  await handleUpdate(deps, update(undefined, 7));
+  assert.match(sent[0].text, /mensagens de texto/);
+  const failing = { reply: async () => { throw new Error("boom"); } } as unknown as Assessor;
+  await handleUpdate({ ...deps, assessor: failing }, update("oi", 8));
+  assert.match(sent[1].text, /Ops/);
+});
+
+test("webhook: exige o secret token e responde 200 processando em segundo plano", async () => {
+  const { deps, sent } = makeDeps();
+  const app = createApp(deps, { secret: "s3gredo" });
   const server = app.listen(0);
   await new Promise((r) => server.once("listening", r));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  const post = (body: unknown, sign = true) => {
-    const raw = JSON.stringify(body);
-    const headers: Record<string, string> = { "content-type": "application/json" };
-    if (sign) headers["x-hub-signature-256"] = "sha256=" + createHmac("sha256", SECRET).update(raw).digest("hex");
-    return fetch(`${base}/webhook`, { method: "POST", headers, body: raw });
-  };
-  const waitFor = async (pred: () => boolean, ms = 2000) => {
-    const t0 = Date.now();
-    while (!pred() && Date.now() - t0 < ms) await new Promise((r) => setTimeout(r, 10));
-  };
-  return { base, post, sent, store, waitFor, close: () => new Promise((r) => server.close(r)) };
-}
-
-test("GET /webhook responde ao challenge com o verify token certo", async () => {
-  const s = await startApp();
   try {
-    const ok = await fetch(`${s.base}/webhook?hub.mode=subscribe&hub.verify_token=verify-me&hub.challenge=12345`);
-    assert.equal(ok.status, 200);
-    assert.equal(await ok.text(), "12345");
-    const bad = await fetch(`${s.base}/webhook?hub.mode=subscribe&hub.verify_token=errado&hub.challenge=1`);
-    assert.equal(bad.status, 403);
-  } finally { await s.close(); }
-});
-
-test("POST /webhook rejeita assinatura ausente ou inválida", async () => {
-  const s = await startApp();
-  try {
-    assert.equal((await s.post(payload("oi"), false)).status, 401);
-    const raw = JSON.stringify(payload("oi"));
-    const r = await fetch(`${s.base}/webhook`, {
-      method: "POST", body: raw,
-      headers: { "content-type": "application/json", "x-hub-signature-256": "sha256=" + "0".repeat(64) },
+    const bad = await fetch(`${base}/telegram/webhook`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(update("oi", 20)) });
+    assert.equal(bad.status, 401);
+    const ok = await fetch(`${base}/telegram/webhook`, {
+      method: "POST", body: JSON.stringify(update("oi", 21)),
+      headers: { "content-type": "application/json", "x-telegram-bot-api-secret-token": "s3gredo" },
     });
-    assert.equal(r.status, 401);
-    assert.equal(s.sent.length, 0);
-  } finally { await s.close(); }
+    assert.equal(ok.status, 200);
+    const t0 = Date.now();
+    while (sent.length < 1 && Date.now() - t0 < 2000) await new Promise((r) => setTimeout(r, 10));
+    assert.deepEqual(sent, [{ to: "42", text: "eco: oi" }]);
+    const health = await fetch(`${base}/health`);
+    assert.deepEqual(await health.json(), { ok: true });
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
 });
 
-test("POST /webhook responde 200 e envia a resposta do assessor; duplicados são ignorados", async () => {
-  const s = await startApp();
+test("sem webhook configurado, a rota não existe", async () => {
+  const { deps } = makeDeps();
+  const app = createApp(deps);
+  const server = app.listen(0);
+  await new Promise((r) => server.once("listening", r));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   try {
-    const r = await s.post(payload("gastei 40 no almoço"));
-    assert.equal(r.status, 200);
-    await s.waitFor(() => s.sent.length === 1);
-    assert.deepEqual(s.sent, [{ to: "5511999999999", text: "eco: gastei 40 no almoço" }]);
-    assert.equal(s.store.users[0]?.name, "Ana");
-
-    await s.post(payload("gastei 40 no almoço")); // mesmo wamid.1
-    await new Promise((r) => setTimeout(r, 50));
-    assert.equal(s.sent.length, 1);
-  } finally { await s.close(); }
-});
-
-test("números fora de ALLOWED_PHONES são ignorados", async () => {
-  const s = await startApp({ allowedPhones: new Set(["5500000000000"]) });
-  try {
-    await s.post(payload("oi", "wamid.9"));
-    await new Promise((r) => setTimeout(r, 50));
-    assert.equal(s.sent.length, 0);
-  } finally { await s.close(); }
-});
-
-test("mensagem sem texto recebe aviso", async () => {
-  const s = await startApp();
-  try {
-    const p = payload("x", "wamid.audio");
-    p.entry[0].changes[0].value.messages[0] = { id: "wamid.audio", from: "5511999999999", timestamp: String(Math.floor(Date.now() / 1000)), type: "audio" } as any;
-    await s.post(p);
-    await s.waitFor(() => s.sent.length === 1);
-    assert.match(s.sent[0].text, /mensagens de texto/);
-  } finally { await s.close(); }
+    const r = await fetch(`${base}/telegram/webhook`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    assert.equal(r.status, 404);
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
 });

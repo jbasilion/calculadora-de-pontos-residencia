@@ -65,7 +65,7 @@ function fakeGemini(responses: any[]) {
 
 test("GeminiProvider executa function calls, devolve functionResponse e retorna o texto final", async () => {
   const store = new MemoryStore();
-  const user = await store.getOrCreateUser("5511999999999", { tz: TZ, name: "Ana" });
+  const user = await store.getOrCreateUser("42", { tz: TZ, name: "Ana" });
   await store.appendMessage(user.id, "user", "oi");
   await store.appendMessage(user.id, "assistant", "Oi, Ana!");
 

@@ -8,7 +8,7 @@ const NOW = new Date("2026-09-27T17:00:00Z"); // dom 27/09/2026 14:00 em SP
 
 async function setup() {
   const store = new MemoryStore();
-  const user = await store.getOrCreateUser("5511999999999", { tz: TZ, name: "Ana" });
+  const user = await store.getOrCreateUser("42", { tz: TZ, name: "Ana" });
   const tools = buildTools({ store, user, now: NOW });
   const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
   const run = (name: string, input: unknown) => (byName[name] as any).run(input) as Promise<string>;

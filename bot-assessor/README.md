@@ -1,12 +1,12 @@
-# Bot Assessor — assistente pessoal no WhatsApp
+# Bot Assessor — assistente pessoal no Telegram
 
-Um assessor de IA no WhatsApp, no estilo do "Meu Assessor": você manda mensagens soltas
+Um assessor de IA no Telegram, no estilo do "Meu Assessor": você manda mensagens soltas
 ("gastei 40 no almoço", "me lembra de pagar a luz dia 5 às 9h", "o que tenho amanhã?")
 e ele registra gastos, agenda compromissos, cria lembretes e guarda notas. Tudo em
 português, com respostas curtas.
 
 **Stack:** Node.js 20+ · TypeScript · [Gemini](https://ai.google.dev) (plano gratuito) com *function calling*,
-ou Claude como alternativa · WhatsApp Cloud API (Meta) · Supabase (Postgres).
+ou Claude como alternativa · Telegram Bot API · Supabase (Postgres).
 
 ## O que ele faz
 
@@ -28,16 +28,16 @@ ou Claude como alternativa · WhatsApp Cloud API (Meta) · Supabase (Postgres).
 ```
 bot-assessor/
 ├── src/
-│   ├── server.ts      # Express: webhook do WhatsApp (/webhook) e /health
+│   ├── server.ts      # entrada: long polling do Telegram (ou webhook), agendador e /health
 │   ├── assessor.ts    # system prompt + montagem do contexto (histórico, data/hora)
 │   ├── llm.ts         # provedores de IA: GeminiProvider (padrão) e AnthropicProvider
 │   ├── tools.ts       # ferramentas: gastos, receitas, resumo, lembretes, agenda, notas
-│   ├── whatsapp.ts    # Cloud API: envio, assinatura do webhook, parse do payload
+│   ├── telegram.ts    # Bot API: envio, long polling, webhook, formatação
 │   ├── scheduler.ts   # cron por minuto: dispara lembretes vencidos
 │   ├── store.ts       # interface Store + SupabaseStore + MemoryStore
 │   ├── dates.ts       # fuso horário, períodos (hoje/semana/mês), formatação
 │   ├── config.ts      # variáveis de ambiente (zod)
-│   └── chat.ts        # chat no terminal para testar sem WhatsApp
+│   └── chat.ts        # chat no terminal para testar sem Telegram
 ├── supabase/migrations/0001_init.sql
 ├── test/              # node:test (npm test)
 └── .env.example
@@ -64,13 +64,13 @@ e 1.000 por dia. Cada mensagem sua costuma gastar 2 requisições (uma para deci
 para responder), então dá para umas 120 mensagens por dia no Flash. Se estourar, o bot responde
 pedindo para tentar em um minuto. Para trocar de modelo, mude `GEMINI_MODEL`.
 
-### 3. Testar no terminal (sem WhatsApp, sem banco)
+### 3. Testar no terminal (sem Telegram, sem banco)
 
 ```bash
 npm run chat
 ```
 
-Os dados ficam em memória. Bom para ajustar o comportamento antes de ligar no WhatsApp.
+Os dados ficam em memória. Bom para ajustar o comportamento antes de ligar no Telegram.
 
 ### 4. Banco (Supabase)
 
@@ -79,24 +79,23 @@ Os dados ficam em memória. Bom para ajustar o comportamento antes de ligar no W
 3. Em *Project Settings → API*, copie a **URL** e a chave **service_role** para o `.env`
    (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`). A chave service_role só vive no servidor.
 
-### 5. WhatsApp Cloud API (Meta)
+### 5. Bot do Telegram (2 minutos)
 
-1. Em [developers.facebook.com](https://developers.facebook.com) crie um app do tipo **Business** e adicione o produto **WhatsApp**.
-2. Em *WhatsApp → API Setup* copie o **Phone number ID** (`WHATSAPP_PHONE_NUMBER_ID`). O token temporário serve para testar; para produção crie um **System User** no Business Manager e gere um token permanente com as permissões `whatsapp_business_messaging` e `whatsapp_business_management` (`WHATSAPP_TOKEN`).
-3. Em *App Settings → Basic* copie o **App Secret** (`WHATSAPP_APP_SECRET`).
-4. Escolha uma frase qualquer para `WHATSAPP_VERIFY_TOKEN`.
-5. Suba o servidor numa URL pública HTTPS (ver abaixo) e em *WhatsApp → Configuration* cadastre o webhook `https://SEU-HOST/webhook` com o verify token. Assine o campo **messages**.
-6. Enquanto o app está em modo de desenvolvimento, só números adicionados como *test recipients* recebem mensagens. Adicione o seu.
+1. No Telegram, abra o [@BotFather](https://t.me/BotFather) e mande `/newbot`. Escolha um nome e um
+   username terminado em `bot`.
+2. Copie o token que ele devolve (formato `123456789:AAH...`) para `TELEGRAM_BOT_TOKEN` no `.env`.
+3. Opcional: mande `/setdescription` e `/setuserpic` no BotFather para deixar o bot com a sua cara.
 
-Dica: preencha `ALLOWED_PHONES` com o seu número (com DDI, ex.: `5511999999999`) para que só você use o bot.
+Para o bot ser só seu, preencha `ALLOWED_CHAT_IDS` com o seu id de usuário. Não sabe o id? Deixe a
+variável com qualquer valor (ex.: `0`), mande uma mensagem ao bot e ele responde informando o seu id.
 
 ### 6. Subir o servidor
 
-Desenvolvimento local com túnel (ex.: [ngrok](https://ngrok.com) ou `cloudflared tunnel`):
+Em **modo polling** (padrão) o próprio bot busca as mensagens no Telegram. Não precisa de URL pública,
+HTTPS nem túnel: funciona no seu computador, num Raspberry Pi ou em qualquer VPS.
 
 ```bash
-npm run dev            # porta 3000
-ngrok http 3000        # use a URL https gerada no webhook da Meta
+npm run dev            # desenvolvimento, recarrega ao salvar
 ```
 
 Produção (Railway, Render, Fly.io, VPS...):
@@ -106,12 +105,17 @@ npm run build
 npm start              # node dist/server.js
 ```
 
-O processo precisa ficar sempre ligado: além do webhook, ele roda o agendador que dispara os lembretes a cada minuto.
+O processo precisa ficar ligado: além de responder, ele roda o agendador que dispara os lembretes a
+cada minuto. Se o computador desligar, os lembretes atrasados são enviados quando ele voltar.
+
+**Modo webhook** (opcional, para hospedagens que exigem um servidor HTTP): defina `TELEGRAM_MODE=webhook`,
+`TELEGRAM_WEBHOOK_URL=https://seu-app.exemplo.com` e um `TELEGRAM_WEBHOOK_SECRET`. Ao subir, o bot
+registra o webhook `https://seu-app.exemplo.com/telegram/webhook` sozinho e valida o segredo em cada chamada.
 
 ### 7. Testes
 
 ```bash
-npm test               # datas, ferramentas, provedor Gemini, WhatsApp, agendador, webhook
+npm test               # datas, ferramentas, provedor Gemini, Telegram, agendador, servidor
 npm run typecheck
 ```
 
@@ -124,22 +128,26 @@ npm run typecheck
 | `GEMINI_MODEL` | padrão `gemini-2.5-flash`; `gemini-2.5-flash-lite` tem cota diária maior |
 | `GEMINI_THINKING_BUDGET` | opcional; `0` desliga o raciocínio interno e acelera as respostas |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `ANTHROPIC_EFFORT` | só quando `LLM_PROVIDER=anthropic` |
-| `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` | credenciais da Cloud API |
+| `TELEGRAM_BOT_TOKEN` | token do @BotFather |
+| `TELEGRAM_MODE` | `polling` (padrão) ou `webhook` |
+| `TELEGRAM_WEBHOOK_URL`, `TELEGRAM_WEBHOOK_SECRET` | só no modo webhook |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | banco |
 | `DEFAULT_TIMEZONE` | fuso inicial dos usuários (padrão `America/Sao_Paulo`; cada um pode mudar conversando) |
-| `ALLOWED_PHONES` | lista de números permitidos, separados por vírgula (vazio = todos) |
+| `ALLOWED_CHAT_IDS` | ids de usuário/chat permitidos, separados por vírgula (vazio = todos) |
 | `PORT` | porta HTTP (padrão 3000) |
 
 ## Como funciona por dentro
 
-1. A Meta chama `POST /webhook`. O servidor valida a assinatura HMAC (`X-Hub-Signature-256`), responde 200 imediatamente e processa a mensagem em segundo plano. IDs já processados são descartados (a Meta reenvia eventos em caso de falha).
+1. O bot busca atualizações no Telegram com *long polling* (`getUpdates`), ou as recebe em `POST /telegram/webhook` validando o header secreto. Cada `update_id` é processado uma vez só, mesmo que o Telegram reentregue. `/start` responde com as boas-vindas sem gastar cota da IA.
 2. O assessor busca as últimas 30 mensagens do usuário no banco, acrescenta a data/hora atual no fuso dele e chama o modelo com as 12 ferramentas declaradas (*function calling*). Se o modelo pedir ferramentas, o bot as executa (em paralelo), devolve os resultados e repete até receber o texto final. As ferramentas são definidas uma vez só, com schemas zod, e convertidas para o formato do Gemini ou do Claude.
 3. Os parâmetros que o modelo manda são validados pelo schema antes de tocar no banco; erro de validação volta como texto para o modelo corrigir.
 4. Bloqueios de segurança do modelo e limites de cota viram mensagens amigáveis para o usuário.
 5. O agendador roda a cada minuto, envia lembretes com `remind_at` vencido e reagenda os recorrentes (diário, semanal, mensal).
+6. As respostas vão em HTML do Telegram (*negrito* vira `<b>`); se o Telegram rejeitar a formatação, o texto é reenviado puro.
 
 ## Limitações e próximos passos
 
-- Só texto: áudios e imagens recebem um aviso. Transcrição de áudio e leitura de comprovantes são extensões naturais.
-- Lembretes fora da janela de 24h desde a última mensagem do usuário exigem *message templates* aprovados pela Meta em contas de produção; em modo de teste, texto livre funciona.
+- Só texto: áudios e fotos recebem um aviso. Transcrição de áudio e leitura de comprovantes são extensões naturais (o Gemini aceita ambos).
+- Em grupos, o bot só vê as mensagens se for administrador ou se o "modo privacidade" for desligado no BotFather; ele foi pensado para conversa individual.
+- A versão anterior, para WhatsApp Cloud API, está no histórico do git (commit `b25d910`).
 - Relatório mensal automático, exportação para planilha e metas de gasto ficam como sugestões de evolução.

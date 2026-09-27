@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 
 export interface User {
   id: string;
-  phone: string;
+  chat_id: string;   // id do chat no Telegram (usuário ou grupo)
   name: string | null;
   tz: string;
   created_at: string;
@@ -53,7 +53,7 @@ export interface Note {
 }
 
 export interface Store {
-  getOrCreateUser(phone: string, defaults: { tz: string; name?: string | null }): Promise<User>;
+  getOrCreateUser(chat_id: string, defaults: { tz: string; name?: string | null }): Promise<User>;
   updateUser(userId: string, patch: Partial<Pick<User, "name" | "tz">>): Promise<User>;
 
   appendMessage(userId: string, role: Role, content: string): Promise<void>;
@@ -67,13 +67,13 @@ export interface Store {
   listReminders(userId: string, opts: { status?: ReminderStatus; from?: string; to?: string; limit?: number }): Promise<Reminder[]>;
   updateReminder(id: string, patch: Partial<Pick<Reminder, "status" | "due_at" | "remind_at">>): Promise<void>;
   cancelReminder(userId: string, id: string): Promise<boolean>;
-  dueReminders(now: string): Promise<Array<Reminder & { phone: string; tz: string }>>;
+  dueReminders(now: string): Promise<Array<Reminder & { chat_id: string; tz: string }>>;
 
   addNote(userId: string, text: string): Promise<Note>;
   searchNotes(userId: string, query: string, limit?: number): Promise<Note[]>;
 
   /** Retorna true se o id ainda não havia sido processado (e o marca). */
-  markProcessed(waMessageId: string): Promise<boolean>;
+  markProcessed(externalId: string): Promise<boolean>;
 }
 
 /* ============================ Supabase ============================ */
@@ -89,13 +89,13 @@ export class SupabaseStore implements Store {
     return r.data as T;
   }
 
-  async getOrCreateUser(phone: string, defaults: { tz: string; name?: string | null }): Promise<User> {
-    const found = await this.db.from("users").select("*").eq("phone", phone).maybeSingle();
+  async getOrCreateUser(chat_id: string, defaults: { tz: string; name?: string | null }): Promise<User> {
+    const found = await this.db.from("users").select("*").eq("chat_id", chat_id).maybeSingle();
     if (found.error) throw new Error(`users.select: ${found.error.message}`);
     if (found.data) return found.data as User;
     const created = await this.db
       .from("users")
-      .insert({ phone, tz: defaults.tz, name: defaults.name ?? null })
+      .insert({ chat_id, tz: defaults.tz, name: defaults.name ?? null })
       .select("*")
       .single();
     return this.unwrap(created, "users.insert") as User;
@@ -174,15 +174,15 @@ export class SupabaseStore implements Store {
     return (this.unwrap(r, "reminders.cancel") as unknown[]).length > 0;
   }
 
-  async dueReminders(now: string): Promise<Array<Reminder & { phone: string; tz: string }>> {
+  async dueReminders(now: string): Promise<Array<Reminder & { chat_id: string; tz: string }>> {
     const r = await this.db
       .from("reminders")
-      .select("*, users!inner(phone, tz)")
+      .select("*, users!inner(chat_id, tz)")
       .eq("status", "pendente")
       .lte("remind_at", now)
       .limit(200);
-    const rows = this.unwrap(r, "reminders.due") as Array<Reminder & { users: { phone: string; tz: string } }>;
-    return rows.map(({ users, ...rem }) => ({ ...rem, phone: users.phone, tz: users.tz }));
+    const rows = this.unwrap(r, "reminders.due") as Array<Reminder & { users: { chat_id: string; tz: string } }>;
+    return rows.map(({ users, ...rem }) => ({ ...rem, chat_id: users.chat_id, tz: users.tz }));
   }
 
   async addNote(userId: string, text: string): Promise<Note> {
@@ -197,8 +197,8 @@ export class SupabaseStore implements Store {
     return this.unwrap(r, "notes.select") as Note[];
   }
 
-  async markProcessed(waMessageId: string): Promise<boolean> {
-    const r = await this.db.from("processed_messages").insert({ wa_message_id: waMessageId });
+  async markProcessed(externalId: string): Promise<boolean> {
+    const r = await this.db.from("processed_messages").insert({ external_id: externalId });
     if (!r.error) return true;
     if (r.error.code === "23505") return false; // unique_violation: já processada
     throw new Error(`processed_messages.insert: ${r.error.message}`);
@@ -217,10 +217,10 @@ export class MemoryStore implements Store {
 
   private now() { return new Date().toISOString(); }
 
-  async getOrCreateUser(phone: string, defaults: { tz: string; name?: string | null }): Promise<User> {
-    let u = this.users.find((x) => x.phone === phone);
+  async getOrCreateUser(chat_id: string, defaults: { tz: string; name?: string | null }): Promise<User> {
+    let u = this.users.find((x) => x.chat_id === chat_id);
     if (!u) {
-      u = { id: randomUUID(), phone, name: defaults.name ?? null, tz: defaults.tz, created_at: this.now() };
+      u = { id: randomUUID(), chat_id, name: defaults.name ?? null, tz: defaults.tz, created_at: this.now() };
       this.users.push(u);
     }
     return u;
@@ -278,12 +278,12 @@ export class MemoryStore implements Store {
     r.status = "cancelado";
     return true;
   }
-  async dueReminders(now: string): Promise<Array<Reminder & { phone: string; tz: string }>> {
+  async dueReminders(now: string): Promise<Array<Reminder & { chat_id: string; tz: string }>> {
     return this.reminders
       .filter((r) => r.status === "pendente" && r.remind_at <= now)
       .map((r) => {
         const u = this.users.find((x) => x.id === r.user_id)!;
-        return { ...r, phone: u.phone, tz: u.tz };
+        return { ...r, chat_id: u.chat_id, tz: u.tz };
       });
   }
   async addNote(userId: string, text: string): Promise<Note> {

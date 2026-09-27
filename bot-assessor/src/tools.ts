@@ -196,7 +196,7 @@ export function buildTools(ctx: ToolContext): ToolDef[] {
   const criar_lembrete = defineTool({
     name: "criar_lembrete",
     description:
-      "Cria um lembrete: o bot manda uma mensagem no WhatsApp no horário indicado. Use para 'me lembra de...', 'não me deixa esquecer...'. Interprete expressões relativas ('daqui 2 horas', 'amanhã cedo' = 08:00, 'à noite' = 20:00) usando a data/hora atual informada.",
+      "Cria um lembrete: o bot manda uma mensagem no chat no horário indicado. Use para 'me lembra de...', 'não me deixa esquecer...'. Interprete expressões relativas ('daqui 2 horas', 'amanhã cedo' = 08:00, 'à noite' = 20:00) usando a data/hora atual informada.",
     inputSchema: z.object({
       texto: z.string().min(1).describe("O que lembrar, na forma de aviso. Ex.: 'Tomar o remédio'"),
       quando: localDateTime,
@@ -224,7 +224,7 @@ export function buildTools(ctx: ToolContext): ToolDef[] {
       inicio: localDateTime,
       local: z.string().optional(),
       avisar_minutos_antes: z.number().int().min(0).max(7 * 24 * 60).default(60)
-        .describe("Quanto tempo antes avisar no WhatsApp. 0 = avisar na hora."),
+        .describe("Quanto tempo antes avisar no chat. 0 = avisar na hora."),
       recorrencia: RECORRENCIA.default("nenhuma"),
     }),
     run: async (i) => {

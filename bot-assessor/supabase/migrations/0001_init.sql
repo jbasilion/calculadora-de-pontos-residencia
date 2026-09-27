@@ -3,7 +3,7 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.users (
   id          uuid primary key default gen_random_uuid(),
-  phone       text not null unique,          -- número no formato internacional, ex.: 5511999999999
+  chat_id     text not null unique,          -- id do chat no Telegram (usuário ou grupo)
   name        text,
   tz          text not null default 'America/Sao_Paulo',
   created_at  timestamptz not null default now()
@@ -53,9 +53,9 @@ create table if not exists public.notes (
   created_at  timestamptz not null default now()
 );
 
--- Idempotência do webhook (a Meta pode reenviar o mesmo evento).
+-- Idempotência: o Telegram pode reentregar uma mesma atualização.
 create table if not exists public.processed_messages (
-  wa_message_id text primary key,
+  external_id   text primary key,
   created_at    timestamptz not null default now()
 );
 

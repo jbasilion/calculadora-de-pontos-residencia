@@ -12,28 +12,28 @@ const schema = z.object({
   ANTHROPIC_MODEL: z.string().default("claude-opus-5"),
   ANTHROPIC_EFFORT: z.enum(["low", "medium", "high"]).default("medium"),
 
-  WHATSAPP_TOKEN: z.string().optional(),
-  WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
-  WHATSAPP_VERIFY_TOKEN: z.string().optional(),
-  WHATSAPP_APP_SECRET: z.string().optional(),
-  WHATSAPP_API_VERSION: z.string().default("v21.0"),
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  /** polling: o bot busca as mensagens (não precisa de URL pública). webhook: o Telegram chama o servidor. */
+  TELEGRAM_MODE: z.enum(["polling", "webhook"]).default("polling"),
+  TELEGRAM_WEBHOOK_URL: z.string().optional(),
+  TELEGRAM_WEBHOOK_SECRET: z.string().optional(),
 
   SUPABASE_URL: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
 
   PORT: z.coerce.number().default(3000),
   DEFAULT_TIMEZONE: z.string().default("America/Sao_Paulo"),
-  ALLOWED_PHONES: z.string().default(""),
+  ALLOWED_CHAT_IDS: z.string().default(""),
 });
 
-export type Config = z.infer<typeof schema> & { allowedPhones: Set<string> };
+export type Config = z.infer<typeof schema> & { allowedChatIds: Set<string> };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = schema.parse(env);
-  const allowedPhones = new Set(
-    parsed.ALLOWED_PHONES.split(",").map((s) => s.trim()).filter(Boolean),
+  const allowedChatIds = new Set(
+    parsed.ALLOWED_CHAT_IDS.split(",").map((s) => s.trim()).filter(Boolean),
   );
-  return { ...parsed, allowedPhones };
+  return { ...parsed, allowedChatIds };
 }
 
 /** Variáveis exigidas pelo provedor de IA escolhido. */
@@ -44,19 +44,12 @@ export function requireLlmConfig(cfg: Config): void {
   }
 }
 
-/** Garante as variáveis que o servidor WhatsApp precisa; falha cedo com mensagem clara. */
+/** Garante as variáveis que o servidor precisa; falha cedo com mensagem clara. */
 export function requireServerConfig(cfg: Config): void {
   requireLlmConfig(cfg);
-  const missing = (
-    [
-      "WHATSAPP_TOKEN",
-      "WHATSAPP_PHONE_NUMBER_ID",
-      "WHATSAPP_VERIFY_TOKEN",
-      "WHATSAPP_APP_SECRET",
-      "SUPABASE_URL",
-      "SUPABASE_SERVICE_ROLE_KEY",
-    ] as const
-  ).filter((k) => !cfg[k]);
+  const required: Array<keyof Config> = ["TELEGRAM_BOT_TOKEN", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"];
+  if (cfg.TELEGRAM_MODE === "webhook") required.push("TELEGRAM_WEBHOOK_URL", "TELEGRAM_WEBHOOK_SECRET");
+  const missing = required.filter((k) => !cfg[k]);
   if (missing.length) {
     throw new Error(
       `Variáveis de ambiente ausentes: ${missing.join(", ")}. Copie .env.example para .env e preencha.`,

@@ -3,8 +3,12 @@
  */
 import cron from "node-cron";
 import type { Reminder, Store } from "./store.js";
-import type { WhatsAppClient } from "./whatsapp.js";
 import { formatPtBr, localParts } from "./dates.js";
+
+/** Qualquer canal capaz de mandar texto para um chat (Telegram em produção, falso nos testes). */
+export interface MessageSender {
+  sendText(chatId: string, text: string): Promise<void>;
+}
 
 export function nextOccurrence(iso: string, recurrence: Reminder["recurrence"], tz: string): string | null {
   if (recurrence === "nenhuma") return null;
@@ -32,12 +36,12 @@ export function reminderText(r: Reminder, tz: string): string {
   return `⏰ Lembrete: ${r.title}`;
 }
 
-export async function processDueReminders(store: Store, wa: WhatsAppClient, now = new Date()): Promise<number> {
+export async function processDueReminders(store: Store, sender: MessageSender, now = new Date()): Promise<number> {
   const due = await store.dueReminders(now.toISOString());
   let sent = 0;
   for (const r of due) {
     try {
-      await wa.sendText(r.phone, reminderText(r, r.tz));
+      await sender.sendText(r.chat_id, reminderText(r, r.tz));
       sent++;
       const nextDue = nextOccurrence(r.due_at, r.recurrence, r.tz);
       if (nextDue) {
@@ -56,13 +60,13 @@ export async function processDueReminders(store: Store, wa: WhatsAppClient, now 
   return sent;
 }
 
-export function startScheduler(store: Store, wa: WhatsAppClient): void {
+export function startScheduler(store: Store, sender: MessageSender): void {
   let running = false;
   cron.schedule("* * * * *", async () => {
     if (running) return;
     running = true;
     try {
-      const n = await processDueReminders(store, wa);
+      const n = await processDueReminders(store, sender);
       if (n) console.log(`[scheduler] ${n} lembrete(s) enviado(s)`);
     } catch (err) {
       console.error("[scheduler] erro:", err);
