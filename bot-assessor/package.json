@@ -1,0 +1,31 @@
+{
+  "name": "bot-assessor",
+  "version": "0.1.0",
+  "description": "Assessor pessoal de IA no WhatsApp: gastos, compromissos, lembretes e notas",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "chat": "tsx src/chat.ts",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "@supabase/supabase-js": "^2.117.2",
+    "dotenv": "^18.0.4",
+    "express": "^5.2.1",
+    "node-cron": "^4.6.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.3",
+    "@types/node-cron": "^3.0.11",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
