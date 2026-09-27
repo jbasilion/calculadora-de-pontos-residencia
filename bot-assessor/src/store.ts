@@ -53,7 +53,8 @@ export interface Note {
 }
 
 export interface Store {
-  getOrCreateUser(chat_id: string, defaults: { tz: string; name?: string | null }): Promise<User>;
+  getOrCreateUser(chatId: string, defaults: { tz: string; name?: string | null }): Promise<User>;
+  getUser(userId: string): Promise<User | null>;
   updateUser(userId: string, patch: Partial<Pick<User, "name" | "tz">>): Promise<User>;
 
   appendMessage(userId: string, role: Role, content: string): Promise<void>;
@@ -99,6 +100,12 @@ export class SupabaseStore implements Store {
       .select("*")
       .single();
     return this.unwrap(created, "users.insert") as User;
+  }
+
+  async getUser(userId: string): Promise<User | null> {
+    const r = await this.db.from("users").select("*").eq("id", userId).maybeSingle();
+    if (r.error) throw new Error(`users.get: ${r.error.message}`);
+    return (r.data as User | null) ?? null;
   }
 
   async updateUser(userId: string, patch: Partial<Pick<User, "name" | "tz">>): Promise<User> {
@@ -224,6 +231,9 @@ export class MemoryStore implements Store {
       this.users.push(u);
     }
     return u;
+  }
+  async getUser(userId: string): Promise<User | null> {
+    return this.users.find((x) => x.id === userId) ?? null;
   }
   async updateUser(userId: string, patch: Partial<Pick<User, "name" | "tz">>): Promise<User> {
     const u = this.users.find((x) => x.id === userId);

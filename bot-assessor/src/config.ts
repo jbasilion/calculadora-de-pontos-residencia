@@ -22,6 +22,10 @@ const schema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
 
   PORT: z.coerce.number().default(3000),
+  /** URL pública do portal web (ex.: https://seu-app.exemplo.com). Padrão: http://localhost:PORT */
+  PORTAL_URL: z.string().optional(),
+  /** Segredo que assina os links do portal. Se vazio, deriva do token do Telegram. */
+  PORTAL_SECRET: z.string().optional(),
   DEFAULT_TIMEZONE: z.string().default("America/Sao_Paulo"),
   ALLOWED_CHAT_IDS: z.string().default(""),
 });

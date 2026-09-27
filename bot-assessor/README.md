@@ -22,6 +22,21 @@ ou Claude como alternativa · Telegram Bot API · Supabase (Postgres).
 | "o que tenho essa semana?" | lista agenda e lembretes pendentes |
 | "anota aí: placa do carro ABC1D23" | salva uma nota; "qual a placa?" busca |
 | "apaga o gasto do uber" | lista, confirma e exclui |
+| `/portal` | manda o link do portal web com gráficos e todos os lançamentos |
+
+## Portal web
+
+Mande `/portal` para o bot e ele responde com um link pessoal (válido por 7 dias) para uma página com:
+
+- total de gastos, receitas, saldo e média diária do período;
+- gráfico de gastos por categoria e gráfico por dia (ou por mês, em períodos longos);
+- tabela de todos os lançamentos com busca, ordenação, filtro por categoria e botão de excluir;
+- exportação em CSV (abre direto no Excel/Google Sheets);
+- abas com a agenda pendente e as notas salvas.
+
+O link carrega um token assinado; quem tiver o link vê os dados, então não o compartilhe. Em modo
+polling o portal fica em `http://localhost:3000/portal` (acessível no próprio computador ou na rede
+local). Para abrir do celular fora de casa, hospede o bot com URL pública e informe `PORTAL_URL`.
 
 ## Estrutura
 
@@ -31,6 +46,7 @@ bot-assessor/
 │   ├── server.ts      # entrada: long polling do Telegram (ou webhook), agendador e /health
 │   ├── assessor.ts    # system prompt + montagem do contexto (histórico, data/hora)
 │   ├── llm.ts         # provedores de IA: GeminiProvider (padrão) e AnthropicProvider
+│   ├── portal.ts      # portal web: link assinado, API de leitura/exclusão, CSV
 │   ├── tools.ts       # ferramentas: gastos, receitas, resumo, lembretes, agenda, notas
 │   ├── telegram.ts    # Bot API: envio, long polling, webhook, formatação
 │   ├── scheduler.ts   # cron por minuto: dispara lembretes vencidos
@@ -38,6 +54,7 @@ bot-assessor/
 │   ├── dates.ts       # fuso horário, períodos (hoje/semana/mês), formatação
 │   ├── config.ts      # variáveis de ambiente (zod)
 │   └── chat.ts        # chat no terminal para testar sem Telegram
+├── public/portal.html # página do portal (HTML + SVG, sem dependências)
 ├── supabase/migrations/0001_init.sql
 ├── test/              # node:test (npm test)
 └── .env.example
@@ -136,6 +153,8 @@ npm run typecheck
 | `DEFAULT_TIMEZONE` | fuso inicial dos usuários (padrão `America/Sao_Paulo`; cada um pode mudar conversando) |
 | `ALLOWED_CHAT_IDS` | ids de usuário/chat permitidos, separados por vírgula (vazio = todos) |
 | `PORT` | porta HTTP (padrão 3000) |
+| `PORTAL_URL` | URL pública do portal; padrão `http://localhost:PORT` |
+| `PORTAL_SECRET` | segredo que assina os links do portal; se vazio, derivado do token do Telegram |
 
 ## Como funciona por dentro
 

@@ -23,7 +23,7 @@ function makeDeps(overrides: Partial<AppDeps> = {}) {
     sendTyping: async () => {},
   };
   const assessor = { reply: async (_u: unknown, text: string) => `eco: ${text}` } as unknown as Assessor;
-  const deps: AppDeps = { store, telegram, assessor, defaultTz: "America/Sao_Paulo", allowedChatIds: new Set(), ...overrides };
+  const deps: AppDeps = { store, telegram, assessor, defaultTz: "America/Sao_Paulo", allowedChatIds: new Set(), portal: { baseUrl: "http://localhost:3000", secret: "seg" }, ...overrides };
   return { deps, sent, store };
 }
 

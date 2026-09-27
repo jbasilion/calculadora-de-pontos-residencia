@@ -9,6 +9,8 @@ import { Assessor, friendlyError } from "./assessor.js";
 import { createProvider } from "./llm.js";
 import { TelegramClient, extractMessage, runPolling, verifySecret, type TelegramUpdate } from "./telegram.js";
 import { startScheduler } from "./scheduler.js";
+import { createPortalRouter, portalLink, signPortalToken } from "./portal.js";
+import { createHash } from "node:crypto";
 
 export interface AppDeps {
   store: Store;
@@ -16,6 +18,8 @@ export interface AppDeps {
   telegram: Pick<TelegramClient, "sendText" | "sendTyping">;
   defaultTz: string;
   allowedChatIds: Set<string>;
+  /** Portal web: URL pública e segredo que assina os links. */
+  portal: { baseUrl: string; secret: string };
 }
 
 export const WELCOME =
@@ -24,7 +28,8 @@ export const WELCOME =
   "• \"quanto gastei esse mês?\" → resumo por categoria\n" +
   "• \"me lembra de pagar a luz dia 5 às 9h\" → te aviso na hora\n" +
   "• \"dentista sexta às 10\" → agendo e aviso antes\n" +
-  "• \"anota aí: ...\" → guardo a nota\n\nPode falar do seu jeito, sem comandos.";
+  "• \"anota aí: ...\" → guardo a nota\n\n" +
+  "Para ver tudo em uma tela, com gráficos e exportação, mande /portal.\n\nPode falar do seu jeito, sem comandos.";
 
 /** Processa uma atualização do Telegram (idempotente, tolerante a erros). */
 export async function handleUpdate(deps: AppDeps, update: TelegramUpdate): Promise<void> {
@@ -51,6 +56,15 @@ export async function handleUpdate(deps: AppDeps, update: TelegramUpdate): Promi
       await deps.telegram.sendText(msg.chatId, WELCOME);
       return;
     }
+    if (cmd === "/portal") {
+      const u = await deps.store.getOrCreateUser(msg.chatId, { tz: deps.defaultTz, name: msg.name });
+      const link = portalLink(deps.portal.baseUrl, signPortalToken(u.id, deps.portal.secret));
+      await deps.telegram.sendText(
+        msg.chatId,
+        `Seu portal 📊\n${link}\n\nO link vale por 7 dias e dá acesso aos seus dados: não compartilhe. Quando expirar, mande /portal de novo.`,
+      );
+      return;
+    }
     // Outros comandos seguem para o assessor como texto normal (ex.: "/resumo" → "resumo").
     msg.text = msg.text.replace(/^\/(\w+)(@\w+)?/, "$1");
   }
@@ -72,6 +86,7 @@ export function createApp(deps: AppDeps, webhook?: { secret: string }) {
   const app = express();
   app.use(express.json());
   app.get("/health", (_req, res) => res.json({ ok: true }));
+  app.use(createPortalRouter({ store: deps.store, secret: deps.portal.secret }));
 
   if (webhook) {
     app.post("/telegram/webhook", (req: Request, res: Response) => {
@@ -90,7 +105,11 @@ async function main() {
   const store = new SupabaseStore(cfg.SUPABASE_URL!, cfg.SUPABASE_SERVICE_ROLE_KEY!);
   const telegram = new TelegramClient({ token: cfg.TELEGRAM_BOT_TOKEN! });
   const assessor = new Assessor(store, createProvider(cfg));
-  const deps: AppDeps = { store, assessor, telegram, defaultTz: cfg.DEFAULT_TIMEZONE, allowedChatIds: cfg.allowedChatIds };
+  const portal = {
+    baseUrl: cfg.PORTAL_URL ?? `http://localhost:${cfg.PORT}`,
+    secret: cfg.PORTAL_SECRET ?? createHash("sha256").update(`portal:${cfg.TELEGRAM_BOT_TOKEN}`).digest("hex"),
+  };
+  const deps: AppDeps = { store, assessor, telegram, defaultTz: cfg.DEFAULT_TIMEZONE, allowedChatIds: cfg.allowedChatIds, portal };
 
   const me = await telegram.getMe();
   console.log(`Bot @${me.username ?? me.id} (IA: ${assessor.providerName})`);
@@ -106,7 +125,7 @@ async function main() {
     });
   } else {
     const app = createApp(deps);
-    app.listen(cfg.PORT, () => console.log(`/health na porta ${cfg.PORT}`));
+    app.listen(cfg.PORT, () => console.log(`Portal em ${portal.baseUrl}/portal (mande /portal ao bot para receber o link)`));
     await telegram.deleteWebhook(); // getUpdates não funciona com webhook ativo
     console.log("Long polling ativo. Mande uma mensagem para o bot no Telegram.");
     const ac = new AbortController();

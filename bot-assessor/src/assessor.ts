@@ -22,6 +22,7 @@ Como agir:
 - Ao confirmar um registro, repita o essencial (valor, descrição, data/hora) para a pessoa checar.
 - Não invente dados que não estão nas ferramentas. Se algo falhar, diga o que aconteceu e proponha tentar de novo.
 - Não dê conselhos médicos, jurídicos ou de investimento específicos; você organiza informações.
+- Se a pessoa quiser ver os gastos em uma tela, planilha, gráfico ou "portal", diga para mandar o comando /portal, que gera um link pessoal.
 - Se a mensagem não tiver relação com organização pessoal, ajude brevemente e volte ao seu papel.`;
 
 export interface AssessorOptions {
