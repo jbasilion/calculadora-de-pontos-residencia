@@ -5,8 +5,8 @@ Um assessor de IA no WhatsApp, no estilo do "Meu Assessor": você manda mensagen
 e ele registra gastos, agenda compromissos, cria lembretes e guarda notas. Tudo em
 português, com respostas curtas.
 
-**Stack:** Node.js 20+ · TypeScript · [Claude](https://platform.claude.com) com *tool use* ·
-WhatsApp Cloud API (Meta) · Supabase (Postgres).
+**Stack:** Node.js 20+ · TypeScript · [Gemini](https://ai.google.dev) (plano gratuito) com *function calling*,
+ou Claude como alternativa · WhatsApp Cloud API (Meta) · Supabase (Postgres).
 
 ## O que ele faz
 
@@ -29,7 +29,8 @@ WhatsApp Cloud API (Meta) · Supabase (Postgres).
 bot-assessor/
 ├── src/
 │   ├── server.ts      # Express: webhook do WhatsApp (/webhook) e /health
-│   ├── assessor.ts    # system prompt + chamada ao Claude com ferramentas
+│   ├── assessor.ts    # system prompt + montagem do contexto (histórico, data/hora)
+│   ├── llm.ts         # provedores de IA: GeminiProvider (padrão) e AnthropicProvider
 │   ├── tools.ts       # ferramentas: gastos, receitas, resumo, lembretes, agenda, notas
 │   ├── whatsapp.ts    # Cloud API: envio, assinatura do webhook, parse do payload
 │   ├── scheduler.ts   # cron por minuto: dispara lembretes vencidos
@@ -52,9 +53,18 @@ npm install
 cp .env.example .env
 ```
 
-### 2. Testar no terminal (sem WhatsApp, sem banco)
+### 2. Chave do Gemini (grátis)
 
-Só precisa da chave da Anthropic no `.env`:
+1. Entre em [aistudio.google.com/apikey](https://aistudio.google.com/apikey) com sua conta Google e clique em **Create API key**.
+2. Cole em `GEMINI_API_KEY` no `.env`.
+
+O plano gratuito não cobra por token, só limita a quantidade: o `gemini-2.5-flash` aceita
+cerca de 10 requisições por minuto e 250 por dia; o `gemini-2.5-flash-lite` aceita 15 por minuto
+e 1.000 por dia. Cada mensagem sua costuma gastar 2 requisições (uma para decidir a ação, outra
+para responder), então dá para umas 120 mensagens por dia no Flash. Se estourar, o bot responde
+pedindo para tentar em um minuto. Para trocar de modelo, mude `GEMINI_MODEL`.
+
+### 3. Testar no terminal (sem WhatsApp, sem banco)
 
 ```bash
 npm run chat
@@ -62,14 +72,14 @@ npm run chat
 
 Os dados ficam em memória. Bom para ajustar o comportamento antes de ligar no WhatsApp.
 
-### 3. Banco (Supabase)
+### 4. Banco (Supabase)
 
 1. Crie um projeto em [supabase.com](https://supabase.com).
 2. No **SQL Editor**, cole e rode `supabase/migrations/0001_init.sql`.
 3. Em *Project Settings → API*, copie a **URL** e a chave **service_role** para o `.env`
    (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`). A chave service_role só vive no servidor.
 
-### 4. WhatsApp Cloud API (Meta)
+### 5. WhatsApp Cloud API (Meta)
 
 1. Em [developers.facebook.com](https://developers.facebook.com) crie um app do tipo **Business** e adicione o produto **WhatsApp**.
 2. Em *WhatsApp → API Setup* copie o **Phone number ID** (`WHATSAPP_PHONE_NUMBER_ID`). O token temporário serve para testar; para produção crie um **System User** no Business Manager e gere um token permanente com as permissões `whatsapp_business_messaging` e `whatsapp_business_management` (`WHATSAPP_TOKEN`).
@@ -80,7 +90,7 @@ Os dados ficam em memória. Bom para ajustar o comportamento antes de ligar no W
 
 Dica: preencha `ALLOWED_PHONES` com o seu número (com DDI, ex.: `5511999999999`) para que só você use o bot.
 
-### 5. Subir o servidor
+### 6. Subir o servidor
 
 Desenvolvimento local com túnel (ex.: [ngrok](https://ngrok.com) ou `cloudflared tunnel`):
 
@@ -98,10 +108,10 @@ npm start              # node dist/server.js
 
 O processo precisa ficar sempre ligado: além do webhook, ele roda o agendador que dispara os lembretes a cada minuto.
 
-### 6. Testes
+### 7. Testes
 
 ```bash
-npm test               # 29 testes: datas, ferramentas, WhatsApp, agendador, webhook
+npm test               # datas, ferramentas, provedor Gemini, WhatsApp, agendador, webhook
 npm run typecheck
 ```
 
@@ -109,9 +119,11 @@ npm run typecheck
 
 | Variável | Para que serve |
 |---|---|
-| `ANTHROPIC_API_KEY` | chave da API do Claude |
-| `ASSESSOR_MODEL` | modelo (padrão `claude-opus-5`; `claude-sonnet-5` é mais barato) |
-| `ASSESSOR_EFFORT` | `low` / `medium` / `high` — profundidade do raciocínio (padrão `medium`) |
+| `LLM_PROVIDER` | `gemini` (padrão) ou `anthropic` |
+| `GEMINI_API_KEY` | chave do Google AI Studio |
+| `GEMINI_MODEL` | padrão `gemini-2.5-flash`; `gemini-2.5-flash-lite` tem cota diária maior |
+| `GEMINI_THINKING_BUDGET` | opcional; `0` desliga o raciocínio interno e acelera as respostas |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `ANTHROPIC_EFFORT` | só quando `LLM_PROVIDER=anthropic` |
 | `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` | credenciais da Cloud API |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | banco |
 | `DEFAULT_TIMEZONE` | fuso inicial dos usuários (padrão `America/Sao_Paulo`; cada um pode mudar conversando) |
@@ -121,9 +133,9 @@ npm run typecheck
 ## Como funciona por dentro
 
 1. A Meta chama `POST /webhook`. O servidor valida a assinatura HMAC (`X-Hub-Signature-256`), responde 200 imediatamente e processa a mensagem em segundo plano. IDs já processados são descartados (a Meta reenvia eventos em caso de falha).
-2. O assessor busca as últimas 30 mensagens do usuário no banco, acrescenta a data/hora atual no fuso dele e chama o Claude com as 12 ferramentas. O SDK executa o loop de *tool use* (`toolRunner`): o modelo decide quais ferramentas chamar, elas gravam no Supabase e o texto final volta ao usuário.
-3. O system prompt é fixo e marcado para cache de prompt, então só o histórico e a mensagem nova são cobrados integralmente a cada chamada.
-4. Recusas de segurança do modelo caem em um modelo alternativo automaticamente (`fallbacks: "default"`), e o usuário recebe uma mensagem amigável se mesmo assim não houver resposta.
+2. O assessor busca as últimas 30 mensagens do usuário no banco, acrescenta a data/hora atual no fuso dele e chama o modelo com as 12 ferramentas declaradas (*function calling*). Se o modelo pedir ferramentas, o bot as executa (em paralelo), devolve os resultados e repete até receber o texto final. As ferramentas são definidas uma vez só, com schemas zod, e convertidas para o formato do Gemini ou do Claude.
+3. Os parâmetros que o modelo manda são validados pelo schema antes de tocar no banco; erro de validação volta como texto para o modelo corrigir.
+4. Bloqueios de segurança do modelo e limites de cota viram mensagens amigáveis para o usuário.
 5. O agendador roda a cada minuto, envia lembretes com `remind_at` vencido e reagenda os recorrentes (diário, semanal, mensal).
 
 ## Limitações e próximos passos

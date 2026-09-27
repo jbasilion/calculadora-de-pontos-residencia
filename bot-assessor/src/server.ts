@@ -5,6 +5,7 @@ import express, { type Request, type Response } from "express";
 import { loadConfig, requireServerConfig } from "./config.js";
 import { SupabaseStore, type Store } from "./store.js";
 import { Assessor, friendlyError } from "./assessor.js";
+import { createProvider } from "./llm.js";
 import { WhatsAppClient, extractMessages, verifySignature, type IncomingMessage } from "./whatsapp.js";
 import { startScheduler } from "./scheduler.js";
 
@@ -88,7 +89,7 @@ async function main() {
   const wa = new WhatsAppClient({
     token: cfg.WHATSAPP_TOKEN!, phoneNumberId: cfg.WHATSAPP_PHONE_NUMBER_ID!, apiVersion: cfg.WHATSAPP_API_VERSION,
   });
-  const assessor = new Assessor(store, { model: cfg.ASSESSOR_MODEL, effort: cfg.ASSESSOR_EFFORT });
+  const assessor = new Assessor(store, createProvider(cfg));
 
   const app = createApp({
     store, assessor, wa,
@@ -98,7 +99,7 @@ async function main() {
 
   startScheduler(store, wa);
   app.listen(cfg.PORT, () => {
-    console.log(`Assessor ouvindo em http://localhost:${cfg.PORT} (modelo ${cfg.ASSESSOR_MODEL}, effort ${cfg.ASSESSOR_EFFORT})`);
+    console.log(`Assessor ouvindo em http://localhost:${cfg.PORT} (IA: ${assessor.providerName})`);
   });
 }
 

@@ -3,7 +3,6 @@
  * a um usuário e a um instante, para que o modelo nunca precise (nem possa)
  * informar o id do usuário.
  */
-import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import type { Store, Recurrence, Reminder, Transaction, User } from "./store.js";
 import {
@@ -14,6 +13,37 @@ export interface ToolContext {
   store: Store;
   user: User;
   now: Date;
+}
+
+/**
+ * Definição neutra de ferramenta (independente do provedor de IA).
+ * `src/llm.ts` converte para o formato do Gemini ou do Claude.
+ */
+export interface ToolDef<S extends z.ZodObject = z.ZodObject> {
+  name: string;
+  description: string;
+  schema: S;
+  run: (input: z.output<S>) => Promise<string>;
+}
+
+function defineTool<S extends z.ZodObject>(def: {
+  name: string; description: string; inputSchema: S; run: (input: z.output<S>) => Promise<string>;
+}): ToolDef<S> {
+  return { name: def.name, description: def.description, schema: def.inputSchema, run: def.run };
+}
+
+/** Valida a entrada (aplicando defaults) e executa. Erros de validação voltam como texto para o modelo corrigir. */
+export async function executeTool(def: ToolDef, rawInput: unknown): Promise<string> {
+  const parsed = def.schema.safeParse(rawInput ?? {});
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "(raiz)"}: ${i.message}`).join("; ");
+    return `Erro de validação nos parâmetros de ${def.name}: ${issues}`;
+  }
+  try {
+    return await def.run(parsed.data);
+  } catch (err) {
+    return `Erro ao executar ${def.name}: ${err instanceof Error ? err.message : String(err)}`;
+  }
 }
 
 const PERIODO = z.enum(["hoje", "ontem", "semana", "mes", "mes_passado", "ano", "personalizado"]);
@@ -42,11 +72,11 @@ async function resolveId<T extends { id: string }>(prefix: string, candidates: T
   return candidates.find((c) => c.id === prefix || c.id.startsWith(prefix));
 }
 
-export function buildTools(ctx: ToolContext) {
+export function buildTools(ctx: ToolContext): ToolDef[] {
   const { store, user, now } = ctx;
   const tz = user.tz;
 
-  const registrar_gasto = betaZodTool({
+  const registrar_gasto = defineTool({
     name: "registrar_gasto",
     description:
       "Registra um gasto (despesa) do usuário. Use quando ele disser que gastou, pagou ou comprou algo. Se não informar a data, é hoje.",
@@ -70,7 +100,7 @@ export function buildTools(ctx: ToolContext) {
     },
   });
 
-  const registrar_receita = betaZodTool({
+  const registrar_receita = defineTool({
     name: "registrar_receita",
     description: "Registra uma entrada de dinheiro (salário, pagamento recebido, venda, reembolso).",
     inputSchema: z.object({
@@ -89,7 +119,7 @@ export function buildTools(ctx: ToolContext) {
     },
   });
 
-  const resumo_financeiro = betaZodTool({
+  const resumo_financeiro = defineTool({
     name: "resumo_financeiro",
     description:
       "Totais de gastos e receitas em um período, com quebra por categoria. Use para 'quanto gastei', 'como está o mês', 'saldo'.",
@@ -126,7 +156,7 @@ export function buildTools(ctx: ToolContext) {
     },
   });
 
-  const listar_lancamentos = betaZodTool({
+  const listar_lancamentos = defineTool({
     name: "listar_lancamentos",
     description: "Lista os lançamentos (gastos e receitas) de um período, do mais recente para o mais antigo.",
     inputSchema: z.object({
@@ -145,7 +175,7 @@ export function buildTools(ctx: ToolContext) {
     },
   });
 
-  const excluir_lancamento = betaZodTool({
+  const excluir_lancamento = defineTool({
     name: "excluir_lancamento",
     description:
       "Exclui um lançamento pelo id (os 8 primeiros caracteres bastam). Antes de excluir, confirme com o usuário qual é, listando se necessário.",
@@ -163,7 +193,7 @@ export function buildTools(ctx: ToolContext) {
     },
   });
 
-  const criar_lembrete = betaZodTool({
+  const criar_lembrete = defineTool({
     name: "criar_lembrete",
     description:
       "Cria um lembrete: o bot manda uma mensagem no WhatsApp no horário indicado. Use para 'me lembra de...', 'não me deixa esquecer...'. Interprete expressões relativas ('daqui 2 horas', 'amanhã cedo' = 08:00, 'à noite' = 20:00) usando a data/hora atual informada.",
@@ -185,7 +215,7 @@ export function buildTools(ctx: ToolContext) {
     },
   });
 
-  const criar_compromisso = betaZodTool({
+  const criar_compromisso = defineTool({
     name: "criar_compromisso",
     description:
       "Agenda um compromisso (reunião, consulta, evento) e opcionalmente um aviso alguns minutos antes.",
@@ -208,7 +238,7 @@ export function buildTools(ctx: ToolContext) {
     },
   });
 
-  const agenda = betaZodTool({
+  const agenda = defineTool({
     name: "agenda",
     description: "Lista compromissos e lembretes pendentes de um período. Use para 'o que tenho hoje/amanhã/essa semana', 'minha agenda'.",
     inputSchema: z.object({
@@ -231,7 +261,7 @@ export function buildTools(ctx: ToolContext) {
     },
   });
 
-  const cancelar_lembrete = betaZodTool({
+  const cancelar_lembrete = defineTool({
     name: "cancelar_lembrete",
     description: "Cancela um lembrete ou compromisso pendente pelo id (8 primeiros caracteres bastam).",
     inputSchema: z.object({ id: z.string().min(4) }),
@@ -244,7 +274,7 @@ export function buildTools(ctx: ToolContext) {
     },
   });
 
-  const salvar_nota = betaZodTool({
+  const salvar_nota = defineTool({
     name: "salvar_nota",
     description: "Guarda uma informação livre para consulta futura (ideias, senhas de wi-fi NÃO, listas, dados de contato, 'anota aí').",
     inputSchema: z.object({ texto: z.string().min(1) }),
@@ -254,7 +284,7 @@ export function buildTools(ctx: ToolContext) {
     },
   });
 
-  const buscar_notas = betaZodTool({
+  const buscar_notas = defineTool({
     name: "buscar_notas",
     description: "Procura notas salvas por palavra-chave. Consulta vazia lista as mais recentes.",
     inputSchema: z.object({ consulta: z.string().default(""), limite: z.number().int().min(1).max(30).default(10) }),
@@ -265,7 +295,7 @@ export function buildTools(ctx: ToolContext) {
     },
   });
 
-  const atualizar_perfil = betaZodTool({
+  const atualizar_perfil = defineTool({
     name: "atualizar_perfil",
     description: "Atualiza o nome pelo qual o usuário quer ser chamado ou o fuso horário dele (IANA, ex.: America/Manaus).",
     inputSchema: z.object({ nome: z.string().optional(), fuso: z.string().optional() }),
@@ -283,7 +313,5 @@ export function buildTools(ctx: ToolContext) {
     registrar_gasto, registrar_receita, resumo_financeiro, listar_lancamentos, excluir_lancamento,
     criar_lembrete, criar_compromisso, agenda, cancelar_lembrete,
     salvar_nota, buscar_notas, atualizar_perfil,
-  ];
+  ] as ToolDef[];
 }
-
-export type AssessorTools = ReturnType<typeof buildTools>;

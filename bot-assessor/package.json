@@ -12,9 +12,12 @@
     "chat": "tsx src/chat.ts",
     "test": "node --import tsx --test test/*.test.ts"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
+    "@google/genai": "^2.24.0",
     "@supabase/supabase-js": "^2.117.2",
     "dotenv": "^18.0.4",
     "express": "^5.2.1",
