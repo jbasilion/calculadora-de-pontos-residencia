@@ -5,8 +5,8 @@ const schema = z.object({
   LLM_PROVIDER: z.enum(["gemini", "anthropic"]).default("gemini"),
 
   GEMINI_API_KEY: z.string().optional(),
-  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
-  GEMINI_THINKING_BUDGET: z.coerce.number().int().optional(),
+  GEMINI_MODEL: z.string().default("gemini-3.8-flash"),
+  GEMINI_THINKING: z.enum(["minimal", "low", "medium", "high"]).default("low"),
 
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default("claude-opus-5"),

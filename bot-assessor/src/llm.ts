@@ -2,7 +2,7 @@
  * Provedores de IA. O assessor fala com uma interface única (`LlmProvider`);
  * aqui ficam as implementações para Gemini (padrão, tem plano gratuito) e Claude.
  */
-import { GoogleGenAI, ApiError as GeminiApiError, FunctionCallingConfigMode, type Content, type FunctionDeclaration, type Part } from "@google/genai";
+import { GoogleGenAI, ApiError as GeminiApiError, FunctionCallingConfigMode, ThinkingLevel, type Content, type FunctionDeclaration, type Part } from "@google/genai";
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
@@ -26,6 +26,9 @@ export const REFUSAL_TEXT =
   "Não consigo ajudar com isso por aqui. Posso registrar gastos, compromissos, lembretes e notas, se quiser. 🙂";
 
 const MAX_ITERATIONS = 8;
+
+/** Modelo Flash atual com plano gratuito (o gemini-2.5-flash deixou de aceitar contas novas). */
+export const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
 
 /* ============================== Gemini ============================== */
 
@@ -78,25 +81,31 @@ export interface GeminiLike {
   models: { generateContent: GoogleGenAI["models"]["generateContent"] };
 }
 
+export type GeminiThinking = "minimal" | "low" | "medium" | "high";
+
 export interface GeminiOptions {
   apiKey?: string;
   model?: string;
   client?: GeminiLike;
-  /** Orçamento de "pensamento" do modelo. 0 desliga (mais rápido), -1 automático. */
-  thinkingBudget?: number;
+  /** Profundidade do "pensamento" do modelo. "low" (padrão) responde rápido e basta para organizar gastos e lembretes. */
+  thinking?: GeminiThinking;
 }
+
+const THINKING_LEVELS: Record<GeminiThinking, ThinkingLevel> = {
+  minimal: ThinkingLevel.MINIMAL, low: ThinkingLevel.LOW, medium: ThinkingLevel.MEDIUM, high: ThinkingLevel.HIGH,
+};
 
 export class GeminiProvider implements LlmProvider {
   readonly name: string;
   private ai: GeminiLike;
   private model: string;
-  private thinkingBudget: number | undefined;
+  private thinking: GeminiThinking;
 
   constructor(opts: GeminiOptions = {}) {
-    this.model = opts.model ?? "gemini-2.5-flash";
+    this.model = opts.model ?? DEFAULT_GEMINI_MODEL;
     this.name = `gemini:${this.model}`;
     this.ai = opts.client ?? new GoogleGenAI({ apiKey: opts.apiKey ?? process.env.GEMINI_API_KEY });
-    this.thinkingBudget = opts.thinkingBudget;
+    this.thinking = opts.thinking ?? "low";
   }
 
   async complete(req: LlmRequest): Promise<string> {
@@ -110,14 +119,14 @@ export class GeminiProvider implements LlmProvider {
     const byName = new Map(req.tools.map((t) => [t.name, t]));
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
-      const res = await this.ai.models.generateContent({
+      const res = await this.generateWithRetry({
         model: this.model,
         contents,
         config: {
           systemInstruction: req.system,
           tools: [{ functionDeclarations: declarations }],
           toolConfig: { functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO } },
-          ...(this.thinkingBudget !== undefined ? { thinkingConfig: { thinkingBudget: this.thinkingBudget } } : {}),
+          thinkingConfig: { thinkingLevel: THINKING_LEVELS[this.thinking] },
         },
       });
 
@@ -128,7 +137,8 @@ export class GeminiProvider implements LlmProvider {
 
       const calls = (candidate.content.parts ?? []).filter((p) => p.functionCall).map((p) => p.functionCall!);
       if (!calls.length) {
-        const text = (candidate.content.parts ?? []).filter((p) => p.text && !p.thought).map((p) => p.text!.trim()).filter(Boolean).join("\n\n");
+        // O Gemini pode dividir uma mesma resposta em vários "parts" de texto: concatena sem separador.
+        const text = (candidate.content.parts ?? []).filter((p) => p.text && !p.thought).map((p) => p.text!).join("").trim();
         return text || "Pronto! ✅";
       }
 
@@ -150,6 +160,23 @@ export class GeminiProvider implements LlmProvider {
     }
     return "Fiz o que consegui, mas a tarefa ficou longa demais. Pode me pedir de novo em partes menores?";
   }
+
+  /** Repete a chamada em erros passageiros do servidor (503 "alta demanda", 500), com espera crescente. */
+  private async generateWithRetry(params: Parameters<GeminiLike["models"]["generateContent"]>[0]) {
+    const waits = [2000, 5000];
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.ai.models.generateContent(params);
+      } catch (err) {
+        const transient = err instanceof GeminiApiError && (err.status === 503 || err.status === 500);
+        if (!transient || attempt >= waits.length) throw err;
+        await this.sleep(waits[attempt]);
+      }
+    }
+  }
+
+  /** Separado para os testes poderem pular a espera. */
+  sleep(ms: number): Promise<void> { return new Promise((r) => setTimeout(r, ms)); }
 }
 
 /* ============================== Claude ============================== */
@@ -224,5 +251,5 @@ export function createProvider(cfg: Config): LlmProvider {
   if (cfg.LLM_PROVIDER === "anthropic") {
     return new AnthropicProvider({ model: cfg.ANTHROPIC_MODEL, effort: cfg.ANTHROPIC_EFFORT });
   }
-  return new GeminiProvider({ apiKey: cfg.GEMINI_API_KEY, model: cfg.GEMINI_MODEL, thinkingBudget: cfg.GEMINI_THINKING_BUDGET });
+  return new GeminiProvider({ apiKey: cfg.GEMINI_API_KEY, model: cfg.GEMINI_MODEL, thinking: cfg.GEMINI_THINKING });
 }

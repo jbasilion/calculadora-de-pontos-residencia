@@ -58,11 +58,12 @@ cp .env.example .env
 1. Entre em [aistudio.google.com/apikey](https://aistudio.google.com/apikey) com sua conta Google e clique em **Create API key**.
 2. Cole em `GEMINI_API_KEY` no `.env`.
 
-O plano gratuito não cobra por token, só limita a quantidade: o `gemini-2.5-flash` aceita
-cerca de 10 requisições por minuto e 250 por dia; o `gemini-2.5-flash-lite` aceita 15 por minuto
-e 1.000 por dia. Cada mensagem sua costuma gastar 2 requisições (uma para decidir a ação, outra
-para responder), então dá para umas 120 mensagens por dia no Flash. Se estourar, o bot responde
-pedindo para tentar em um minuto. Para trocar de modelo, mude `GEMINI_MODEL`.
+O plano gratuito não cobra por token, só limita a quantidade de requisições por minuto e por dia
+(os números variam por modelo; veja a [página de limites](https://ai.google.dev/gemini-api/docs/rate-limits)).
+Cada mensagem sua costuma gastar 2 requisições (uma para decidir a ação, outra para responder).
+Se estourar, o bot responde pedindo para tentar em um minuto. O padrão é o `gemini-3.8-flash`;
+para uma cota diária maior, troque `GEMINI_MODEL` para `gemini-flash-lite-latest`. Modelos antigos
+como o `gemini-2.5-flash` não aceitam mais contas novas.
 
 ### 3. Testar no terminal (sem Telegram, sem banco)
 
@@ -125,8 +126,8 @@ npm run typecheck
 |---|---|
 | `LLM_PROVIDER` | `gemini` (padrão) ou `anthropic` |
 | `GEMINI_API_KEY` | chave do Google AI Studio |
-| `GEMINI_MODEL` | padrão `gemini-2.5-flash`; `gemini-2.5-flash-lite` tem cota diária maior |
-| `GEMINI_THINKING_BUDGET` | opcional; `0` desliga o raciocínio interno e acelera as respostas |
+| `GEMINI_MODEL` | padrão `gemini-3.8-flash`; `gemini-flash-lite-latest` tem cota diária maior |
+| `GEMINI_THINKING` | `minimal` / `low` (padrão) / `medium` / `high`: quanto o modelo raciocina antes de responder |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `ANTHROPIC_EFFORT` | só quando `LLM_PROVIDER=anthropic` |
 | `TELEGRAM_BOT_TOKEN` | token do @BotFather |
 | `TELEGRAM_MODE` | `polling` (padrão) ou `webhook` |

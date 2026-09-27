@@ -81,7 +81,7 @@ test("GeminiProvider executa function calls, devolve functionResponse e retorna 
     { candidates: [{ content: { role: "model", parts: [{ text: "Anotei: almoço R$ 40,00 e uber R$ 18,00 ✅" }] }, finishReason: "STOP" }] },
   ]);
 
-  const provider = new GeminiProvider({ client, model: "gemini-teste" });
+  const provider = new GeminiProvider({ client, model: "gemini-teste", thinking: "low" });
   const assessor = new Assessor(store, provider, { now: () => NOW });
   const answer = await assessor.reply(user, "gastei 40 no almoço e 18 de uber");
 
@@ -151,4 +151,53 @@ test("friendlyError traduz erros da API do Gemini", () => {
   assert.match(friendlyError(new ApiError({ message: "bad key", status: 403 })), /chave da API/);
   assert.match(friendlyError(new ApiError({ message: "boom", status: 503 })), /instável/);
   assert.match(friendlyError(new Error("x")), /Ops/);
+});
+
+test("GeminiProvider envia thinkingLevel conforme configurado", async () => {
+  const store = new MemoryStore();
+  const user = await store.getOrCreateUser("1", { tz: TZ });
+  const tools = buildTools({ store, user, now: NOW });
+  const { client, requests } = fakeGemini([{ candidates: [{ content: { role: "model", parts: [{ text: "ok" }] } }] }]);
+  await new GeminiProvider({ client }).complete({ system: "s", history: [], userText: "x", tools });
+  assert.equal(requests[0].config.thinkingConfig.thinkingLevel, "LOW");
+  const b = fakeGemini([{ candidates: [{ content: { role: "model", parts: [{ text: "ok" }] } }] }]);
+  await new GeminiProvider({ client: b.client, thinking: "high" }).complete({ system: "s", history: [], userText: "x", tools });
+  assert.equal(b.requests[0].config.thinkingConfig.thinkingLevel, "HIGH");
+});
+
+test("GeminiProvider concatena vários parts de texto sem inserir quebras", async () => {
+  const store = new MemoryStore();
+  const user = await store.getOrCreateUser("1", { tz: TZ });
+  const tools = buildTools({ store, user, now: NOW });
+  const { client } = fakeGemini([{ candidates: [{ content: { role: "model", parts: [{ text: "• R$ 40,00 – almoço (alimentação, " }, { text: "pix)\n" }] } }] }]);
+  assert.equal(await new GeminiProvider({ client }).complete({ system: "s", history: [], userText: "x", tools }), "• R$ 40,00 – almoço (alimentação, pix)");
+});
+
+test("GeminiProvider repete em 503 e desiste após as tentativas", async () => {
+  const store = new MemoryStore();
+  const user = await store.getOrCreateUser("1", { tz: TZ });
+  const tools = buildTools({ store, user, now: NOW });
+  const ok = { candidates: [{ content: { role: "model", parts: [{ text: "voltou" }] } }] };
+
+  let n = 0;
+  const flaky: GeminiLike = { models: { generateContent: (async () => {
+    n++;
+    if (n < 3) throw new ApiError({ message: "high demand", status: 503 });
+    return ok;
+  }) as any } };
+  const p = new GeminiProvider({ client: flaky });
+  p.sleep = async () => {};
+  assert.equal(await p.complete({ system: "s", history: [], userText: "x", tools }), "voltou");
+  assert.equal(n, 3);
+
+  const dead: GeminiLike = { models: { generateContent: (async () => { throw new ApiError({ message: "down", status: 503 }); }) as any } };
+  const q = new GeminiProvider({ client: dead });
+  q.sleep = async () => {};
+  await assert.rejects(q.complete({ system: "s", history: [], userText: "x", tools }), (e: unknown) => e instanceof ApiError && e.status === 503);
+
+  const quota: GeminiLike = { models: { generateContent: (async () => { throw new ApiError({ message: "quota", status: 429 }); }) as any } };
+  let calls = 0;
+  const r = new GeminiProvider({ client: { models: { generateContent: (async (...a: any[]) => { calls++; return quota.models.generateContent(...(a as [any])); }) as any } } });
+  await assert.rejects(r.complete({ system: "s", history: [], userText: "x", tools }));
+  assert.equal(calls, 1); // 429 (cota) não é repetido
 });
