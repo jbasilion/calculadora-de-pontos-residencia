@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meu Assessor — Portal</title>
+<style>
+  :root{
+    color-scheme: light;
+    --surface-0:#f4f4f2; --surface-1:#fcfcfb; --line:#e4e3df; --line-soft:#eeede9;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#8a8985;
+    --accent:#2a78d6; --accent-soft:#e3eefb; --series-gasto:#2a78d6; --series-receita:#1baf7a;
+    --danger:#d03b3b; --danger-soft:#fbe9e9;
+    --radius:12px; --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      color-scheme: dark;
+      --surface-0:#111110; --surface-1:#1a1a19; --line:#2c2c2a; --line-soft:#232322;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8b8a82;
+      --accent:#3987e5; --accent-soft:#1c2c42; --series-gasto:#3987e5; --series-receita:#199e70;
+      --danger:#e66767; --danger-soft:#3a1e1e;
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --surface-0:#111110; --surface-1:#1a1a19; --line:#2c2c2a; --line-soft:#232322;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8b8a82;
+    --accent:#3987e5; --accent-soft:#1c2c42; --series-gasto:#3987e5; --series-receita:#199e70;
+    --danger:#e66767; --danger-soft:#3a1e1e;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--surface-0);color:var(--text-primary);font:15px/1.5 var(--sans)}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  h1{font-size:20px;margin:0;letter-spacing:-.01em}
+  .who{color:var(--text-secondary);font-size:14px}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0 18px}
+  .filters select,.filters input,.filters button,.btn{
+    font:inherit;font-size:14px;color:var(--text-primary);background:var(--surface-1);
+    border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+  .filters button:hover,.btn:hover{border-color:var(--accent)}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .custom{display:none;gap:6px;align-items:center}
+  .custom.on{display:flex}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px}
+  .card{background:var(--surface-1);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+  .kpi .label{font-size:13px;color:var(--text-secondary)}
+  .kpi .value{font-size:26px;font-weight:600;margin-top:2px;white-space:nowrap}
+  .kpi.hero .value{font-size:40px}
+  .kpi .sub{font-size:12.5px;color:var(--text-muted)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr}}
+  .card h2{font-size:14px;margin:0 0 10px;color:var(--text-secondary);font-weight:600}
+  .card h2 small{font-weight:400;color:var(--text-muted)}
+  svg{display:block;width:100%;height:auto;overflow:visible}
+  .axis{stroke:var(--line);stroke-width:1}
+  .tick{fill:var(--text-muted);font-size:11px}
+  .lbl{fill:var(--text-secondary);font-size:12px}
+  .val{fill:var(--text-primary);font-size:12px;font-variant-numeric:tabular-nums}
+  .bar{fill:var(--series-gasto);transition:opacity .1s}
+  .bar.receita{fill:var(--series-receita)}
+  .hit{fill:transparent;cursor:default}
+  .hit:hover+.bar,.bar:hover{filter:brightness(1.12)}
+  .tip{position:fixed;pointer-events:none;background:var(--surface-1);border:1px solid var(--line);border-radius:8px;
+    padding:8px 10px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.12);display:none;z-index:10;max-width:260px}
+  .tip b{font-size:15px}
+  .tip .k{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--series-gasto);margin-right:6px;vertical-align:-1px}
+  .legend{display:flex;gap:14px;font-size:12.5px;color:var(--text-secondary);margin-top:6px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:6px 0 12px}
+  .tabs button{font:inherit;font-size:14px;background:none;border:0;border-bottom:2px solid transparent;padding:8px 12px;color:var(--text-secondary);cursor:pointer}
+  .tabs button.on{color:var(--text-primary);border-bottom-color:var(--accent);font-weight:600}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:8px 8px;border-bottom:1px solid var(--line-soft);text-align:left;vertical-align:top}
+  th{font-size:12px;color:var(--text-muted);font-weight:600;letter-spacing:.03em;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  td .cat{display:inline-block;font-size:12px;background:var(--accent-soft);color:var(--text-primary);border-radius:20px;padding:1px 8px}
+  td .pay{color:var(--text-muted);font-size:12.5px}
+  td .del{font:inherit;font-size:12px;background:none;border:1px solid var(--line);border-radius:6px;padding:2px 8px;color:var(--text-secondary);cursor:pointer}
+  td .del:hover{border-color:var(--danger);color:var(--danger);background:var(--danger-soft)}
+  .receita td.num.v{color:var(--text-primary)}
+  .empty{color:var(--text-muted);text-align:center;padding:26px 10px}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .toolbar input{font:inherit;font-size:14px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-1);color:var(--text-primary);min-width:220px}
+  .list li{padding:8px 0;border-bottom:1px solid var(--line-soft);list-style:none}
+  .list{padding:0;margin:0}
+  .list .when{color:var(--text-secondary);font-size:13px}
+  .error{background:var(--danger-soft);color:var(--text-primary);border:1px solid var(--danger);border-radius:var(--radius);padding:18px;margin-top:30px}
+  .loading{opacity:.55;transition:opacity .15s}
+  .only-sm{display:none}
+  @media(max-width:600px){
+    .hide-sm{display:none} .only-sm{display:inline}
+    .kpis{grid-template-columns:1fr 1fr}
+    .kpi.hero{grid-column:1 / -1}
+    .kpi .value{font-size:20px} .kpi.hero .value{font-size:34px}
+    .toolbar input{min-width:0;flex:1}
+    td .del{padding:2px 7px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <header>
+    <h1>📊 Meu Assessor</h1>
+    <div class="who" id="who"></div>
+  </header>
+
+  <div id="locked" class="error" style="display:none">
+    <strong>Link inválido ou expirado.</strong><br>Mande <code>/portal</code> para o bot no Telegram para receber um link novo.
+  </div>
+
+  <div id="main" style="display:none">
+    <div class="filters" role="group" aria-label="Período">
+      <select id="preset" aria-label="Período">
+        <option value="mes">Este mês</option>
+        <option value="mes_passado">Mês passado</option>
+        <option value="30">Últimos 30 dias</option>
+        <option value="90">Últimos 90 dias</option>
+        <option value="ano">Este ano</option>
+        <option value="tudo">Tudo</option>
+        <option value="custom">Personalizado…</option>
+      </select>
+      <div class="custom" id="custom">
+        <input type="date" id="from" aria-label="De"> <span>até</span> <input type="date" id="to" aria-label="Até">
+        <button id="apply">Aplicar</button>
+      </div>
+      <select id="catFilter" aria-label="Categoria"><option value="">Todas as categorias</option></select>
+      <a class="btn" id="csv" href="#" download>Exportar CSV</a>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>Gastos por categoria <small id="catRangeLabel"></small></h2>
+        <div id="catChart"></div>
+      </div>
+      <div class="card">
+        <h2>Gastos ao longo do tempo <small id="timeRangeLabel"></small></h2>
+        <div id="timeChart"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="tabs" role="tablist">
+        <button class="on" data-tab="lanc" role="tab">Lançamentos</button>
+        <button data-tab="agenda" role="tab">Agenda</button>
+        <button data-tab="notas" role="tab">Notas</button>
+      </div>
+      <section id="tab-lanc">
+        <div class="toolbar">
+          <input id="search" type="search" placeholder="Buscar na descrição…" aria-label="Buscar">
+          <span class="who" id="count"></span>
+        </div>
+        <div style="overflow-x:auto"><table id="tbl">
+          <thead><tr>
+            <th data-k="occurred_on">Data</th>
+            <th data-k="description">Descrição</th>
+            <th data-k="category" class="hide-sm">Categoria</th>
+            <th data-k="amount" class="num">Valor</th>
+            <th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </section>
+      <section id="tab-agenda" style="display:none"><ul class="list" id="agenda"></ul></section>
+      <section id="tab-notas" style="display:none"><ul class="list" id="notas"></ul></section>
+    </div>
+  </div>
+</div>
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const token = new URLSearchParams(location.hash.slice(1)).get("t") || new URLSearchParams(location.search).get("t");
+  if (!token) { $("#locked").style.display = "block"; return; }
+  try { sessionStorage.setItem("portal_t", token); } catch {}
+  if (location.search.includes("t=")) history.replaceState(null, "", location.pathname + "#t=" + token);
+
+  const BRL = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const pad = (n) => String(n).padStart(2, "0");
+  const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const brDate = (s) => { const [y, m, d] = s.split("-"); return `${d}/${m}/${y}`; };
+  const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+  let all = [], view = [], sortKey = "occurred_on", sortDir = -1, range = null;
+
+  async function api(path, opts = {}) {
+    const res = await fetch(path, { ...opts, headers: { Authorization: "Bearer " + token, ...(opts.headers || {}) } });
+    if (res.status === 401) { $("#main").style.display = "none"; $("#locked").style.display = "block"; throw new Error("401"); }
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }
+
+  function computeRange() {
+    const p = $("#preset").value, today = new Date(); today.setHours(0, 0, 0, 0);
+    const y = today.getFullYear(), m = today.getMonth();
+    const days = (n) => { const d = new Date(today); d.setDate(d.getDate() - n); return d; };
+    let from, to = today, label;
+    switch (p) {
+      case "mes": from = new Date(y, m, 1); to = new Date(y, m + 1, 0); label = `${MESES[m]}/${y}`; break;
+      case "mes_passado": from = new Date(y, m - 1, 1); to = new Date(y, m, 0); label = `${MESES[from.getMonth()]}/${from.getFullYear()}`; break;
+      case "30": from = days(29); label = "últimos 30 dias"; break;
+      case "90": from = days(89); label = "últimos 90 dias"; break;
+      case "ano": from = new Date(y, 0, 1); to = new Date(y, 11, 31); label = String(y); break;
+      case "tudo": from = new Date(2000, 0, 1); to = new Date(y + 1, 11, 31); label = "todo o período"; break;
+      case "custom": {
+        const f = $("#from").value, t = $("#to").value;
+        if (!f || !t) return null;
+        from = new Date(f + "T00:00:00"); to = new Date(t + "T00:00:00"); label = `${brDate(f)} a ${brDate(t)}`; break;
+      }
+    }
+    return { from: iso(from), to: iso(to), label };
+  }
+
+  async function load() {
+    range = computeRange();
+    if (!range) return;
+    $("#main").classList.add("loading");
+    try {
+      const [me, txs] = await Promise.all([
+        api("/api/portal/me"),
+        api(`/api/portal/transactions?from=${range.from}&to=${range.to}`),
+      ]);
+      $("#who").textContent = me.name ? `${me.name} · ${me.tz}` : me.tz;
+      all = txs;
+      $("#csv").href = `/api/portal/export.csv?from=${range.from}&to=${range.to}&t=${encodeURIComponent(token)}`;
+      fillCategories();
+      render();
+    } finally { $("#main").classList.remove("loading"); }
+  }
+
+  function fillCategories() {
+    const sel = $("#catFilter"), cur = sel.value;
+    const cats = [...new Set(all.filter(t => t.kind === "gasto").map(t => t.category || "sem categoria"))].sort();
+    sel.replaceChildren(new Option("Todas as categorias", ""), ...cats.map(c => new Option(c, c)));
+    if (cats.includes(cur)) sel.value = cur;
+  }
+
+  function render() {
+    const cat = $("#catFilter").value, q = $("#search").value.trim().toLowerCase();
+    view = all.filter(t => !cat || t.kind !== "gasto" || (t.category || "sem categoria") === cat)
+              .filter(t => !q || t.description.toLowerCase().includes(q) || (t.category || "").includes(q));
+    renderKpis(); renderCatChart(); renderTimeChart(); renderTable();
+    $("#catRangeLabel").textContent = range.label; $("#timeRangeLabel").textContent = range.label;
+  }
+
+  function renderKpis() {
+    const gastos = view.filter(t => t.kind === "gasto"), receitas = view.filter(t => t.kind === "receita");
+    const g = gastos.reduce((s, t) => s + t.amount, 0), r = receitas.reduce((s, t) => s + t.amount, 0);
+    const dias = new Set(gastos.map(t => t.occurred_on)).size || 1;
+    const tile = (label, value, sub, hero) => { const d = document.createElement("div"); d.className = "kpi card" + (hero ? " hero" : "");
+      d.innerHTML = `<div class="label"></div><div class="value"></div><div class="sub"></div>`;
+      d.children[0].textContent = label; d.children[1].textContent = value; d.children[2].textContent = sub || ""; return d; };
+    const n = (k, w) => `${k} ${w}${k === 1 ? "" : "s"}`;
+    $("#kpis").replaceChildren(
+      tile("Gastos no período", BRL(g), n(gastos.length, "lançamento"), true),
+      tile("Receitas", BRL(r), n(receitas.length, "lançamento")),
+      tile("Saldo", BRL(r - g), r - g >= 0 ? "sobrou" : "faltou"),
+      tile("Média por dia com gasto", BRL(g / dias), n(dias, "dia")),
+    );
+  }
+
+  /* ---------- gráficos (SVG puro) ---------- */
+  const tip = $("#tip");
+  function showTip(e, title, value, sub) {
+    tip.replaceChildren();
+    const b = document.createElement("b"); b.textContent = value;
+    const t = document.createElement("div"); t.textContent = title; t.style.color = "var(--text-secondary)";
+    tip.append(b, t);
+    if (sub) { const s = document.createElement("div"); s.textContent = sub; s.style.color = "var(--text-muted)"; s.style.fontSize = "12px"; tip.append(s); }
+    tip.style.display = "block"; moveTip(e);
+  }
+  function moveTip(e) { const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8); tip.style.left = x + "px"; tip.style.top = (e.clientY + 14) + "px"; }
+  function hideTip() { tip.style.display = "none"; }
+  const svgEl = (tag, attrs = {}) => { const el = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v); return el; };
+  const niceMax = (v) => { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const n = v / p; const m = n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10; return m * p; };
+  const compact = (v) => v >= 1000 ? (v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "k" : v.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+
+  function renderCatChart() {
+    const host = $("#catChart"); host.replaceChildren();
+    const by = new Map();
+    for (const t of view) if (t.kind === "gasto") { const c = t.category || "sem categoria"; by.set(c, (by.get(c) || 0) + t.amount); }
+    let rows = [...by.entries()].sort((a, b) => b[1] - a[1]);
+    if (!rows.length) { host.innerHTML = '<div class="empty">Nenhum gasto no período.</div>'; return; }
+    if (rows.length > 8) { const rest = rows.slice(7).reduce((s, r) => s + r[1], 0); rows = [...rows.slice(0, 7), ["outros", rest]]; }
+    const total = rows.reduce((s, r) => s + r[1], 0);
+    const W = Math.max(300, host.clientWidth || 520), labelW = W < 420 ? 92 : 120, valW = 90, rowH = 30, barH = 18, padT = 6;
+    const H = padT + rows.length * rowH + 6, plotW = W - labelW - valW - 8, max = rows[0][1];
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Gastos por categoria" });
+    rows.forEach(([cat, val], i) => {
+      const y = padT + i * rowH, w = Math.max(2, (val / max) * plotW), x0 = labelW;
+      const maxChars = W < 420 ? 12 : 16;
+      const lbl = svgEl("text", { x: labelW - 8, y: y + barH / 2 + 4, "text-anchor": "end", class: "lbl" }); lbl.textContent = cat.length > maxChars ? cat.slice(0, maxChars - 1) + "…" : cat;
+      const bar = svgEl("path", { class: "bar", d: roundedRight(x0, y, w, barH, 4) });
+      const hit = svgEl("rect", { class: "hit", x: 0, y: y - 4, width: W, height: rowH });
+      const v = svgEl("text", { x: x0 + w + 8, y: y + barH / 2 + 4, class: "val" }); v.textContent = BRL(val);
+      const pct = `${Math.round(val / total * 100)}% do total`;
+      for (const el of [hit, bar]) { el.addEventListener("pointermove", (e) => showTip(e, cat, BRL(val), pct)); el.addEventListener("pointerleave", hideTip); }
+      svg.append(hit, bar, lbl, v);
+    });
+    svg.append(svgEl("line", { x1: labelW, y1: padT - 2, x2: labelW, y2: H - 4, class: "axis" }));
+    host.append(svg);
+  }
+  function roundedRight(x, y, w, h, r) { r = Math.min(r, w, h / 2); return `M${x},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + h - r} Q${x + w},${y + h} ${x + w - r},${y + h} H${x} Z`; }
+  function roundedTop(x, y, w, h, r) { r = Math.min(r, h, w / 2); return `M${x},${y + h} V${y + r} Q${x},${y} ${x + r},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + h} Z`; }
+
+  function renderTimeChart() {
+    const host = $("#timeChart"); host.replaceChildren();
+    const gastos = view.filter(t => t.kind === "gasto");
+    if (!gastos.length) { host.innerHTML = '<div class="empty">Nenhum gasto no período.</div>'; return; }
+    const from = new Date(range.from + "T00:00:00"), to = new Date(range.to + "T00:00:00");
+    const span = Math.round((to - from) / 86400000) + 1;
+    const byMonth = span > 62 || $("#preset").value === "tudo";
+    const first = gastos.reduce((a, t) => t.occurred_on < a ? t.occurred_on : a, gastos[0].occurred_on);
+    const start = byMonth && $("#preset").value === "tudo" ? new Date(first.slice(0, 7) + "-01T00:00:00") : from;
+    const buckets = [];
+    if (byMonth) { for (let d = new Date(start.getFullYear(), start.getMonth(), 1); d <= to; d.setMonth(d.getMonth() + 1)) buckets.push({ key: iso(d).slice(0, 7), label: `${MESES[d.getMonth()]}/${String(d.getFullYear()).slice(2)}`, full: `${MESES[d.getMonth()]}/${d.getFullYear()}`, v: 0 }); }
+    else { for (let d = new Date(start); d <= to; d.setDate(d.getDate() + 1)) buckets.push({ key: iso(d), label: String(d.getDate()), full: brDate(iso(d)), v: 0 }); }
+    const idx = new Map(buckets.map((b, i) => [b.key, i]));
+    for (const t of gastos) { const k = byMonth ? t.occurred_on.slice(0, 7) : t.occurred_on; if (idx.has(k)) buckets[idx.get(k)].v += t.amount; }
+    const W = Math.max(300, host.clientWidth || 520), H = 220, padL = 46, padR = 8, padT = 10, padB = 26, plotW = W - padL - padR, plotH = H - padT - padB;
+    const max = niceMax(Math.max(...buckets.map(b => b.v)));
+    const n = buckets.length, slot = plotW / n, barW = Math.min(24, Math.max(3, slot - 2));
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Gastos ao longo do tempo" });
+    for (let i = 0; i <= 4; i++) {
+      const y = padT + plotH - (plotH * i / 4);
+      svg.append(svgEl("line", { x1: padL, y1: y, x2: W - padR, y2: y, class: "axis" }));
+      const t = svgEl("text", { x: padL - 6, y: y + 4, "text-anchor": "end", class: "tick" }); t.textContent = compact(max * i / 4); svg.append(t);
+    }
+    const every = Math.ceil(n / (byMonth ? (W < 420 ? 6 : 12) : (W < 420 ? 6 : 10)));
+    const peak = buckets.reduce((a, b, i) => b.v > buckets[a].v ? i : a, 0);
+    buckets.forEach((b, i) => {
+      const x = padL + i * slot + (slot - barW) / 2, h = Math.max(b.v > 0 ? 2 : 0, (b.v / max) * plotH), y = padT + plotH - h;
+      const hit = svgEl("rect", { class: "hit", x: padL + i * slot, y: padT, width: slot, height: plotH });
+      const bar = svgEl("path", { class: "bar", d: h ? roundedTop(x, y, barW, h, 4) : "" });
+      for (const el of [hit, bar]) { el.addEventListener("pointermove", (e) => showTip(e, b.full, BRL(b.v))); el.addEventListener("pointerleave", hideTip); }
+      svg.append(hit, bar);
+      if (i % every === 0 || n <= 12) { const t = svgEl("text", { x: padL + i * slot + slot / 2, y: H - 8, "text-anchor": "middle", class: "tick" }); t.textContent = b.label; svg.append(t); }
+      if (i === peak && b.v > 0) { const v = svgEl("text", { x: x + barW / 2, y: y - 6, "text-anchor": "middle", class: "val" }); v.textContent = BRL(b.v); svg.append(v); }
+    });
+    svg.append(svgEl("line", { x1: padL, y1: padT + plotH, x2: W - padR, y2: padT + plotH, class: "axis" }));
+    host.append(svg);
+  }
+
+  /* ---------- tabela ---------- */
+  function renderTable() {
+    const tb = $("#tbl tbody"); tb.replaceChildren();
+    const rows = [...view].sort((a, b) => { const va = a[sortKey] ?? "", vb = b[sortKey] ?? ""; return (va > vb ? 1 : va < vb ? -1 : 0) * sortDir || (a.created_at > b.created_at ? -1 : 1); });
+    $("#count").textContent = `${rows.length} lançamento${rows.length === 1 ? "" : "s"}`;
+    if (!rows.length) { const tr = document.createElement("tr"); tr.innerHTML = '<td colspan="5" class="empty">Nada por aqui.</td>'; tb.append(tr); return; }
+    for (const t of rows) {
+      const tr = document.createElement("tr"); tr.className = t.kind;
+      const td = (cls) => { const c = document.createElement("td"); if (cls) c.className = cls; tr.append(c); return c; };
+      td().textContent = brDate(t.occurred_on);
+      const d = td(); d.textContent = t.description;
+      if (t.payment_method) { const p = document.createElement("span"); p.className = "pay"; p.textContent = ` · ${t.payment_method}`; d.append(p); }
+      const c = td("hide-sm"); if (t.category) { const s = document.createElement("span"); s.className = "cat"; s.textContent = t.category; c.append(s); }
+      td("num v").textContent = (t.kind === "receita" ? "+ " : "") + BRL(t.amount);
+      const a = td("num"); const del = document.createElement("button"); del.className = "del"; del.title = "Excluir lançamento"; del.setAttribute("aria-label", "Excluir lançamento");
+      del.innerHTML = '<span class="hide-sm">excluir</span><span class="only-sm">✕</span>';
+      del.onclick = async () => {
+        if (!confirm(`Excluir "${t.description}" (${BRL(t.amount)}) de ${brDate(t.occurred_on)}?`)) return;
+        await api(`/api/portal/transactions/${t.id}`, { method: "DELETE" });
+        all = all.filter(x => x.id !== t.id); fillCategories(); render();
+      };
+      a.append(del);
+      tb.append(tr);
+    }
+  }
+  document.querySelectorAll("#tbl th[data-k]").forEach(th => th.onclick = () => { const k = th.dataset.k; if (sortKey === k) sortDir *= -1; else { sortKey = k; sortDir = k === "description" || k === "category" ? 1 : -1; } renderTable(); });
+
+  /* ---------- agenda e notas ---------- */
+  async function loadAgenda() {
+    const items = await api("/api/portal/reminders"); const ul = $("#agenda"); ul.replaceChildren();
+    if (!items.length) { ul.innerHTML = '<li class="empty">Nenhum lembrete ou compromisso pendente.</li>'; return; }
+    for (const r of items) { const li = document.createElement("li"); const w = document.createElement("div"); w.className = "when";
+      w.textContent = `${r.kind === "compromisso" ? "📅" : "⏰"} ${r.due_label}${r.recurrence !== "nenhuma" ? " · " + r.recurrence : ""}`;
+      const t = document.createElement("div"); t.textContent = r.title + (r.location ? ` — ${r.location}` : ""); li.append(w, t); ul.append(li); }
+  }
+  async function loadNotas() {
+    const items = await api("/api/portal/notes"); const ul = $("#notas"); ul.replaceChildren();
+    if (!items.length) { ul.innerHTML = '<li class="empty">Nenhuma nota salva.</li>'; return; }
+    for (const n of items) { const li = document.createElement("li"); const w = document.createElement("div"); w.className = "when"; w.textContent = brDate(n.created_at.slice(0, 10));
+      const t = document.createElement("div"); t.textContent = n.text; li.append(w, t); ul.append(li); }
+  }
+  document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+    document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x === b));
+    for (const s of ["lanc", "agenda", "notas"]) $("#tab-" + s).style.display = b.dataset.tab === s ? "" : "none";
+    if (b.dataset.tab === "agenda") loadAgenda(); if (b.dataset.tab === "notas") loadNotas();
+  });
+
+  /* ---------- eventos ---------- */
+  $("#preset").onchange = () => { $("#custom").classList.toggle("on", $("#preset").value === "custom"); if ($("#preset").value !== "custom") load(); };
+  $("#apply").onclick = load;
+  $("#catFilter").onchange = render;
+  $("#search").oninput = render;
+  window.addEventListener("pointermove", (e) => { if (tip.style.display === "block") moveTip(e); });
+  let rs; window.addEventListener("resize", () => { clearTimeout(rs); rs = setTimeout(() => { if (range) { renderCatChart(); renderTimeChart(); } }, 150); });
+
+  $("#main").style.display = "block";
+  load().catch(err => { if (err.message !== "401") console.error(err); });
+})();
+</script>
+</body>
+</html>
